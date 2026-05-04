@@ -1,0 +1,185 @@
+
+body{
+  margin:0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: linear-gradient(135deg,#343435,#060808);
+  min-height:100vh;
+  
+  
+
+}
+
+
+.contenedor-padre{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  width:100vw;
+  min-height:100vh;
+
+}
+
+
+.tarjeta-login{
+  background:white;
+  width:350px;
+  padding:30px;
+  border-radius:10px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.2);
+}
+
+
+.cabecera-pestanas{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin-bottom:20px;
+}
+
+.pestana{
+  background:none;
+  border:none;
+  font-size:16px;
+  cursor:pointer;
+  padding:10px;
+  color:#777;
+}
+
+.pestana.activa{
+  font-weight:bold;
+  color:#000000;
+}
+
+
+.divisor-vertical{
+  width:1px;
+  height:20px;
+  background:#ccc;
+  margin:0 10px;
+}
+
+
+.formulario{
+  display:flex;
+  flex-direction:column;
+}
+
+.formulario label{
+  font-size:14px;
+  margin-bottom:5px;
+  color:#333;
+}
+
+
+.formulario input{
+  padding:10px;
+  border-radius:5px;
+  border:1px solid #ccc;
+  margin-bottom:15px;
+  font-size:14px;
+}
+
+.formulario button{
+  padding:10px;
+  border:none;
+  border-radius:5px;
+  background:#363636;
+  color:white;
+  font-size:15px;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+.formulario button:hover{
+  background:#383838;
+}
+
+
+.recuperar{
+  text-align:center;
+  margin-top:10px;
+  font-size:13px;
+  color:#777;
+  cursor:pointer;
+}
+
+.needs-validation {
+  margin: auto;
+  background-color: white;
+  height: auto;
+  padding: 20px;
+  
+}
+.col-12 {
+  display: flex;
+    justify-content: center;
+}
+.contenedor-datos{
+  color: white;
+}
+.contenido-tarjetas {
+  display: flex;
+  justify-content: center; 
+  gap: 40px;
+  
+  
+}
+.card {
+  background-color: white;
+  color : black;
+  width: 18rem;
+  flex-shrink: 0;
+  
+}
+.barra-navegacion ul{
+   display:flex;
+  list-style:none;
+  gap:30px;
+  margin:0;
+  padding:0;
+}
+
+.barra-navegacion{
+  width:100%;
+  background:#dcdcdc;
+  padding:15px;
+  position:fixed;
+  top:0;
+  left:0;
+
+  display:flex;
+  align-items:center;
+}
+#logo{
+  width: 100px;
+  height: auto;
+}
+.menu{
+  display:flex;
+  list-style:none;
+  gap:30px;
+  
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+}
+ a{
+  text-decoration:none;
+  color:#333;
+  font-weight:bold;
+} 
+h5 {
+  text-align: center;
+  font-weight: bold;
+}
+.card-text {
+  text-align: center;
+}
+button {
+  display: block;
+  margin: 0 auto;
+}
+.card img{
+  display:block;
+  margin:auto;
+}

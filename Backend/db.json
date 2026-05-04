@@ -1,0 +1,156 @@
+{
+  "usuarios": [
+    {
+      "id": "1",
+      "user": "admin",
+      "pass": 1234,
+      "rol": "admin"
+    },
+    {
+      "id": "2",
+      "user": "tecnico",
+      "pass": 1234,
+      "rol": "tecnico"
+    },
+    {
+      "id": "3",
+      "user": "cliente",
+      "pass": 1234,
+      "rol": "cliente"
+    },
+    {
+      "user": "Julian",
+      "pass": "julian11",
+      "rol": "Cliente",
+      "id": "4"
+    }
+  ],
+  "Productos": [
+    {
+      "nombre": "Reloj Rolex - 2018 J1000",
+      "descripcion": "Rolex sencillo, categoria white mate",
+      "precio": "100000",
+      "id": 1
+    }
+  ],
+  "solicitudes": [
+    {
+      "id": "ad58",
+      "orden": "11",
+      "tipo": "reloj",
+      "subtipo": "De pulso",
+      "danos": [
+        "Vidrio rayado o roto",
+        "Caja golpeada",
+        "Atrasa o adelanta"
+      ],
+      "servicios": [
+        {
+          "nombre": "Cambio de vidrio/cristal",
+          "precio": 25000
+        },
+        {
+          "nombre": "Cambio de tapa trasera",
+          "precio": 10000
+        },
+        {
+          "nombre": "Ajuste de hora",
+          "precio": 2000
+        }
+      ],
+      "total": 47000,
+      "fecha": "24/3/2026"
+    },
+    {
+      "id": "5f48",
+      "orden": "11",
+      "tipo": "reloj",
+      "subtipo": "De pulso",
+      "danos": [
+        "Vidrio rayado o roto",
+        "Corona rota o floja",
+        "Agujas sueltas o caídas"
+      ],
+      "servicios": [
+        {
+          "nombre": "Ajuste de hora",
+          "precio": 2000
+        },
+        {
+          "nombre": "Cambio de pila",
+          "precio": 5000
+        }
+      ],
+      "total": 17000,
+      "fecha": "25/3/2026"
+    },
+    {
+      "id": "51a3",
+      "orden": "2",
+      "tipo": "joyeria",
+      "subtipo": "Pulsera",
+      "danos": [
+        "Pieza rota o partida",
+        "Baño desgastado",
+        "Cierre dañado"
+      ],
+      "servicios": [
+        {
+          "nombre": "Soldadura",
+          "precio": 20000
+        },
+        {
+          "nombre": "Pulido y brillo",
+          "precio": 15000
+        }
+      ],
+      "total": 79444,
+      "fecha": "25/3/2026"
+    },
+    {
+      "id": "c2f5",
+      "orden": "11",
+      "tipo": "reloj",
+      "subtipo": "De pulso",
+      "danos": [
+        "Vidrio rayado o roto",
+        "Cierre roto",
+        "Atrasa o adelanta"
+      ],
+      "servicios": [
+        {
+          "nombre": "Ajuste de hora",
+          "precio": 2000
+        },
+        {
+          "nombre": "Cambio de correa",
+          "precio": 20000
+        },
+        {
+          "nombre": "Cambio de vidrio/cristal",
+          "precio": 25000
+        }
+      ],
+      "total": 57000,
+      "fecha": "25/3/2026"
+    },
+    {
+      "orden": "11",
+      "tipo": "reloj",
+      "subtipo": "De bolsillo",
+      "danos": [
+        "Tapa trasera dañada"
+      ],
+      "servicios": [
+        {
+          "nombre": "Reparación de agujas",
+          "precio": 18000
+        }
+      ],
+      "total": 18000,
+      "fecha": "7/4/2026",
+      "id": "JUQkwfp"
+    }
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
+}

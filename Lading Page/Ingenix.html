@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ingenix — Relojería de Alta Precisión</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="Ingenix.css" />
+</head>
+<body>
+
+<header class="navbar">
+  <div class="navbar__inner">
+    
+    <a href="#inicio" class="navbar__logo">
+      <svg class="navbar__logo-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="14" stroke="#CDCEDF" stroke-width="1.6"/>
+        <circle cx="16" cy="16" r="10" stroke="#B4B6CF" stroke-width="0.8" stroke-dasharray="2 2"/>
+        <circle cx="16" cy="16" r="2" fill="#CDCEDF"/>
+        <line x1="16" y1="5" x2="16" y2="16" stroke="#CDCEDF" stroke-width="2" stroke-linecap="round"/>
+        <line x1="16" y1="16" x2="23" y2="20" stroke="#B4B6CF" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="16" y1="16" x2="11" y2="22" stroke="#D12B2B" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="16" cy="2.5" r="1.2" fill="#B4B6CF"/>
+        <circle cx="16" cy="29.5" r="1.2" fill="#B4B6CF"/>
+        <circle cx="2.5" cy="16" r="1.2" fill="#B4B6CF"/>
+        <circle cx="29.5" cy="16" r="1.2" fill="#B4B6CF"/>
+      </svg>
+      <span>Ingenix</span>
+    </a>
+
+    <nav class="navbar__nav">
+      <a href="#inicio" class="navbar__link navbar__link--active">Inicio</a>
+      <a href="#coleccion" class="navbar__link">Colección</a>
+      <a href="#servicios" class="navbar__link">Servicios</a>
+      <a href="#solicitudes" class="navbar__link">Solicitudes</a>
+    </nav>
+
+    <div class="navbar__auth">
+      <a href="#login" class="btn btn--ghost-light">Iniciar sesión</a>
+      <a href="#register" class="btn btn--accent">Registrarse</a>
+      <button class="navbar__profile" title="Mi perfil" aria-label="Perfil de usuario">
+        <svg width="18" height="18" fill="none" stroke="#7E2020" stroke-width="1.8" viewBox="0 0 24 24">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="navbar__hamburger" id="menuToggle" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile menu -->
+  <div class="navbar__mobile" id="mobileMenu">
+    <a href="#inicio" class="navbar__mobile-link">Inicio</a>
+    <a href="#coleccion" class="navbar__mobile-link">Colección</a>
+    <a href="#servicios" class="navbar__mobile-link">Servicios</a>
+    <a href="#solicitudes" class="navbar__mobile-link">Solicitudes</a>
+    <div class="navbar__mobile-auth">
+      <a href="#login" class="btn btn--ghost-light">Iniciar sesión</a>
+      <a href="#register" class="btn btn--accent">Registrarse</a>
+    </div>
+  </div>
+</header>
+
+
+<section id="inicio" class="hero">
+  <div class="hero__bg-deco" aria-hidden="true">
+    <div class="hero__ring hero__ring--1"></div>
+    <div class="hero__ring hero__ring--2"></div>
+    <div class="hero__ring hero__ring--3"></div>
+  </div>
+
+  <div class="container hero__inner">
+    <div class="hero__copy">
+      <span class="badge badge--muted">Relojería de alta precisión</span>
+      <h1 class="hero__title">El tiempo<br/>es tu <em>obra<br/>maestra.</em></h1>
+      <p class="hero__sub">Descubre nuestra colección exclusiva de relojes artesanales. Precisión, elegancia y tradición en cada pieza que portarás toda la vida.</p>
+      <div class="hero__actions">
+        <a href="#coleccion" class="btn btn--primary btn--lg">Ver colección</a>
+        <a href="#solicitudes" class="btn btn--outline btn--lg">Hacer solicitud</a>
+      </div>
+    </div>
+
+    <div class="hero__watch" aria-hidden="true">
+      <div class="watch-frame">
+        <div class="watch-strap watch-strap--top"></div>
+
+        <div class="watch-body">
+          <div class="watch-bezel">
+            <svg class="watch-face" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="100" cy="18" r="4" fill="#7E2020"/>
+              <circle cx="100" cy="182" r="4" fill="#7E2020"/>
+              <circle cx="18" cy="100" r="4" fill="#7E2020"/>
+              <circle cx="182" cy="100" r="4" fill="#7E2020"/>
+              <circle cx="150" cy="26.8" r="2.5" fill="#CDCEDF"/>
+              <circle cx="173.2" cy="50" r="2.5" fill="#CDCEDF"/>
+              <circle cx="173.2" cy="150" r="2.5" fill="#CDCEDF"/>
+              <circle cx="150" cy="173.2" r="2.5" fill="#CDCEDF"/>
+              <circle cx="50" cy="173.2" r="2.5" fill="#CDCEDF"/>
+              <circle cx="26.8" cy="150" r="2.5" fill="#CDCEDF"/>
+              <circle cx="26.8" cy="50" r="2.5" fill="#CDCEDF"/>
+                <circle cx="50" cy="26.8" r="2.5" fill="#CDCEDF"/>
+                <circle cx="100" cy="100" r="72" stroke="#CDCEDF" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+              <text x="100" y="140" text-anchor="middle" font-family="'Cormorant Garamond', serif" font-size="12" fill="#A23939" letter-spacing="4">INGENIX</text>
+              <line x1="100" y1="100" x2="100" y2="42" stroke="#7E2020" stroke-width="5" stroke-linecap="round" class="hand-hour"/>
+              <line x1="100" y1="100" x2="140" y2="72" stroke="#A23939" stroke-width="3.5" stroke-linecap="round" class="hand-minute"/>
+              <line x1="100" y1="100" x2="68" y2="148" stroke="#D12B2B" stroke-width="1.8" stroke-linecap="round" class="hand-second"/>
+              <circle cx="100" cy="100" r="7" fill="#7E2020"/>
+              <circle cx="100" cy="100" r="3" fill="#fff"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="watch-strap watch-strap--bottom"></div>
+      </div>
+    </div>
+  </div>
+
++  <div class="hero__scroll" aria-hidden="true">
+    <span>Explorar</span>
+    <div class="hero__scroll-line"></div>
+  </div>
+</section>
+
+
+<section class="stats">
+  <div class="container stats__grid">
+    <div class="stats__item">
+      <p class="stats__num">+2.400</p>
+      <p class="stats__label">Relojes vendidos</p>
+    </div>
+    <div class="stats__divider" aria-hidden="true"></div>
+    <div class="stats__item">
+      <p class="stats__num">15 años</p>
+      <p class="stats__label">De experiencia</p>
+    </div>
+    <div class="stats__divider" aria-hidden="true"></div>
+    <div class="stats__item">
+      <p class="stats__num">+120</p>
+      <p class="stats__label">Marcas aliadas</p>
+    </div>
+    <div class="stats__divider" aria-hidden="true"></div>
+    <div class="stats__item">
+      <p class="stats__num">4.9 ★</p>
+      <p class="stats__label">Calificación media</p>
+    </div>
+  </div>
+</section>
+
+
+<section id="coleccion" class="section section--light">
+  <div class="container">
+    <div class="section__header">
+      <span class="badge badge--brand">Catálogo</span>
+      <h2 class="section__title">Nuestra colección</h2>
+      <p class="section__sub">Piezas seleccionadas para quienes valoran la elegancia y la durabilidad en cada segundo.</p>
+    </div>
+
+    <div class="cards-grid">
+
+      <article class="card">
+        <div class="card__img card__img--muted">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="60" cy="60" r="46" stroke="#7E2020" stroke-width="4" fill="white"/>
+            <circle cx="60" cy="60" r="36" stroke="#CDCEDF" stroke-width="1.2" fill="none"/>
+            <circle cx="60" cy="14" r="3" fill="#7E2020"/>
+            <circle cx="60" cy="106" r="3" fill="#7E2020"/>
+            <circle cx="14" cy="60" r="3" fill="#7E2020"/>
+            <circle cx="106" cy="60" r="3" fill="#7E2020"/>
+            <line x1="60" y1="60" x2="60" y2="26" stroke="#7E2020" stroke-width="4" stroke-linecap="round"/>
+            <line x1="60" y1="60" x2="80" y2="50" stroke="#A23939" stroke-width="3" stroke-linecap="round"/>
+            <line x1="60" y1="60" x2="44" y2="80" stroke="#D12B2B" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="5" fill="#7E2020"/>
+            <circle cx="60" cy="60" r="2" fill="white"/>
+          </svg>
+        </div>
+        <div class="card__body">
+          <span class="badge badge--subtle">Clásico</span>
+          <h3 class="card__title">Ingenix Heritage</h3>
+          <p class="card__desc">Movimiento suizo automático. Caja de acero inoxidable 316L. Resistente al agua 50m.</p>
+          <div class="card__footer">
+            <span class="card__price">$1.250.000</span>
+            <button class="btn btn--sm btn--primary">Ver más</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card__img card__img--dark">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="26" y="22" width="68" height="76" rx="16" stroke="#CDCEDF" stroke-width="4" fill="white"/>
+            <rect x="36" y="32" width="48" height="56" rx="10" stroke="#7E2020" stroke-width="1.5" fill="none"/>
+            <circle cx="60" cy="38" r="2.5" fill="#7E2020"/>
+            <circle cx="60" cy="90" r="2.5" fill="#7E2020"/>
+            <circle cx="34" cy="60" r="2.5" fill="#7E2020"/>
+            <circle cx="86" cy="60" r="2.5" fill="#7E2020"/>
+            <line x1="60" y1="60" x2="60" y2="44" stroke="#7E2020" stroke-width="4" stroke-linecap="round"/>
+            <line x1="60" y1="60" x2="74" y2="66" stroke="#A23939" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="4.5" fill="#7E2020"/>
+          </svg>
+        </div>
+        <div class="card__body">
+          <span class="badge badge--subtle">Sport</span>
+          <h3 class="card__title">Ingenix Velocity</h3>
+          <p class="card__desc">Resistente al agua 200m. Bisel giratorio unidireccional. Cristal mineral templado.</p>
+          <div class="card__footer">
+            <span class="card__price">$980.000</span>
+            <button class="btn btn--sm btn--primary">Ver más</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="card card--featured">
+        <div class="card__badge-featured">Edición limitada</div>
+        <div class="card__img card__img--light">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="60" cy="60" rx="46" ry="44" stroke="#7E2020" stroke-width="4" fill="white"/>
+            <ellipse cx="60" cy="60" rx="36" ry="34" stroke="#CDCEDF" stroke-width="1.2" fill="none"/>
+            <circle cx="60" cy="16" r="3" fill="#D12B2B"/>
+            <circle cx="60" cy="104" r="3" fill="#D12B2B"/>
+            <circle cx="14" cy="60" r="3" fill="#D12B2B"/>
+            <circle cx="106" cy="60" r="3" fill="#D12B2B"/>
+            <line x1="60" y1="60" x2="60" y2="26" stroke="#7E2020" stroke-width="4" stroke-linecap="round"/>
+            <line x1="60" y1="60" x2="82" y2="60" stroke="#A23939" stroke-width="3" stroke-linecap="round"/>
+            <line x1="60" y1="60" x2="42" y2="80" stroke="#D12B2B" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="5" fill="#7E2020"/>
+            <circle cx="60" cy="60" r="2" fill="white"/>
+          </svg>
+        </div>
+        <div class="card__body">
+          <span class="badge badge--accent">50 unidades</span>
+          <h3 class="card__title">Ingenix Prestige</h3>
+          <p class="card__desc">Oro rosa 18k. Cristal de zafiro antireflejante. Movimiento tourbillon artesanal.</p>
+          <div class="card__footer">
+            <span class="card__price card__price--accent">$4.800.000</span>
+            <button class="btn btn--sm btn--accent-solid">Ver más</button>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<section id="servicios" class="section section--dark">
+  <div class="container">
+    <div class="section__header section__header--light">
+      <span class="badge badge--light">Lo que ofrecemos</span>
+      <h2 class="section__title section__title--light">Servicios de relojería</h2>
+      <p class="section__sub section__sub--light">Cuidamos tu reloj con la misma dedicación con que fue fabricado.</p>
+    </div>
+
+    <div class="services-grid">
+      <div class="service-card">
+        <div class="service-card__icon">
+          <svg width="24" height="24" fill="none" stroke="#7E2020" stroke-width="1.8" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 7v5l3 3" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3 class="service-card__title">Revisión técnica</h3>
+        <p class="service-card__desc">Diagnóstico completo del movimiento, piezas internas y calibración de precisión.</p>
+      </div>
+
+      <div class="service-card">
+        <div class="service-card__icon">
+          <svg width="24" height="24" fill="none" stroke="#7E2020" stroke-width="1.8" viewBox="0 0 24 24">
+            <path d="M12 3v18M3 12h18" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3 class="service-card__title">Cambio de correa</h3>
+        <p class="service-card__desc">Cuero italiano, acero quirúrgico o silicona. Ajuste incluido sin costo adicional.</p>
+      </div>
+
+      <div class="service-card">
+        <div class="service-card__icon">
+          <svg width="24" height="24" fill="none" stroke="#7E2020" stroke-width="1.8" viewBox="0 0 24 24">
+            <path d="M12 2l2 6h6l-5 4 2 6-5-4-5 4 2-6-5-4h6z"/>
+          </svg>
+        </div>
+        <h3 class="service-card__title">Restauración</h3>
+        <p class="service-card__desc">Pulido de caja, renovación de agujas, restauración del cuadrante y acabados.</p>
+      </div>
+
+      <div class="service-card">
+        <div class="service-card__icon">
+          <svg width="24" height="24" fill="none" stroke="#7E2020" stroke-width="1.8" viewBox="0 0 24 24">
+            <path d="M9 12l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="3"/>
+          </svg>
+        </div>
+        <h3 class="service-card__title">Garantía extendida</h3>
+        <p class="service-card__desc">Cobertura total por 2 años en todas las piezas adquiridas en nuestra tienda.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section id="solicitudes" class="section section--light">
+  <div class="container">
+    <div class="section__header">
+      <span class="badge badge--brand">Contáctanos</span>
+      <h2 class="section__title">Realizar una solicitud</h2>
+      <p class="section__sub">Envíanos tu requerimiento y un experto te contactará a la brevedad.</p>
+    </div>
+
+    <div class="form-wrapper">
+      <form class="form" onsubmit="handleSubmit(event)">
+        <div class="form__row">
+          <div class="form__group">
+            <label class="form__label" for="nombre">Nombre completo</label>
+            <input class="form__input" id="nombre" type="text" placeholder="Juan Pérez" required />
+          </div>
+          <div class="form__group">
+            <label class="form__label" for="email">Correo electrónico</label>
+            <input class="form__input" id="email" type="email" placeholder="correo@ejemplo.com" required />
+          </div>
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="tipo">Tipo de solicitud</label>
+          <select class="form__input form__select" id="tipo">
+            <option>Reparación de reloj</option>
+            <option>Compra o reserva</option>
+            <option>Restauración</option>
+            <option>Garantía</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="desc">Descripción</label>
+          <textarea class="form__input form__textarea" id="desc" rows="4" placeholder="Describe tu solicitud con detalle..."></textarea>
+        </div>
+        <button type="submit" class="btn btn--primary btn--full btn--lg">Enviar solicitud</button>
+        <p class="form__note" id="formNote"></p>
+      </form>
+    </div>
+  </div>
+</section>
+
+
+<section class="cta">
+  <div class="cta__deco" aria-hidden="true">
+    <div class="cta__ring cta__ring--1"></div>
+    <div class="cta__ring cta__ring--2"></div>
+  </div>
+  <div class="container cta__inner">
+    <h2 class="cta__title">¿Listo para encontrar tu reloj ideal?</h2>
+    <p class="cta__sub">Crea una cuenta y accede a ofertas exclusivas, historial de servicios, seguimiento de solicitudes y mucho más.</p>
+    <div class="cta__actions">
+      <a href="#register" class="btn btn--accent btn--lg">Crear cuenta gratis</a>
+      <a href="#login" class="btn btn--ghost-light btn--lg">Iniciar sesión</a>
+    </div>
+  </div>
+</section>
+
+
+<footer class="footer">
+  <div class="container footer__inner">
+    <div class="footer__brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="14" stroke="#CDCEDF" stroke-width="1.4"/>
+        <circle cx="16" cy="16" r="2" fill="#CDCEDF"/>
+        <line x1="16" y1="5" x2="16" y2="16" stroke="#CDCEDF" stroke-width="2" stroke-linecap="round"/>
+        <line x1="16" y1="16" x2="23" y2="20" stroke="#B4B6CF" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="footer__brand-name">Ingenix</span>
+    </div>
+    <nav class="footer__nav">
+      <a href="#inicio" class="footer__link">Inicio</a>
+      <a href="#coleccion" class="footer__link">Colección</a>
+      <a href="#servicios" class="footer__link">Servicios</a>
+      <a href="#solicitudes" class="footer__link">Solicitudes</a>
+      <a href="#login" class="footer__link">Iniciar sesión</a>
+      <a href="#register" class="footer__link">Registrarse</a>
+    </nav>
+    <p class="footer__copy">&copy; 2026 Ingenix Relojería. Todos los derechos reservados.</p>
+  </div>
+</footer>
+
+
+</body>
+</html>
