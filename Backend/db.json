@@ -23,6 +23,12 @@
       "pass": "julian11",
       "rol": "Cliente",
       "id": "4"
+    },
+    {
+      "user": "a",
+      "pass": "1234",
+      "rol": "cliente",
+      "id": "IqB1NDQ"
     }
   ],
   "Productos": [
