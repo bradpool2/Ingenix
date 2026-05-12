@@ -262,3 +262,44 @@ button {
 .servicio:hover {
   transform: translateY(-5px);
 }
+
+/*----------------------------------Css de perfil----------------------------------*/
+.titulo-perfil {
+  color: #000000;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.perfil-datos {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.dato-grupo label {
+  display: block;
+  font-weight: bold;
+  color: #666666; /* Un gris medio para los títulos */
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.dato-grupo span {
+  color: #111111; /* Color casi negro para que se vea bien el dato */
+  font-size: 16px;
+}
+
+.badge-rol {
+  display: inline-block;
+  background-color: #f0f0f0;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.btn-volver {
+  width: 100%;
+  margin-top: 25px;
+  /* El resto de estilos ya los hereda de tu CSS global de botones */
+}

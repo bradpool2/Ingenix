@@ -11,6 +11,7 @@ import Register from './Paginas/Register'
 import Solicitud from './Paginas/Solicitud'
 import Home_invited from './Paginas/Home_invited'
 import RutaProtegida from './components/RutaProtegida'
+import Perfil from './Paginas/Perfil';
 
 
 
@@ -33,6 +34,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/solicitud" element={<Solicitud />} />
         <Route path="/register" element={<Register />} />
         <Route path="/usuarios" element={<Usuarios />} />
+        <Route path="/perfil" element={<Perfil />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
