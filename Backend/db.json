@@ -28,7 +28,9 @@
       "user": "a",
       "pass": "1234",
       "rol": "cliente",
-      "id": "IqB1NDQ"
+      "id": "IqB1NDQ",
+      "correo": "alimaña123@gmail.com",
+      "telefono": "12121212"
     }
   ],
   "Productos": [
