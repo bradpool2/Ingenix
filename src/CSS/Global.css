@@ -289,6 +289,8 @@ button {
   font-size: 16px;
 }
 
+
+/* Css de perfil.jsx */
 .badge-rol {
   display: inline-block;
   background-color: #f0f0f0;
@@ -301,6 +303,5 @@ button {
 .btn-volver {
   width: 100%;
   margin-top: 25px;
-  /* El resto de estilos ya los hereda de tu CSS global de botones */
 }
 

@@ -30,6 +30,7 @@ function Register() {
     }
 
     try {
+      //verificar si el usuario ya existe
       const resCheck = await fetch(`http://localhost:3001/usuarios?user=${datos.nombre}`);
       const dataCheck = await resCheck.json();
 
@@ -38,6 +39,7 @@ function Register() {
         return;
       }
 
+      // guarda el usuario
       const res = await fetch('http://localhost:3001/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,6 +65,7 @@ function Register() {
     }
   };
 
+  //vista de registro
   return (
     <div className="contenedor-padre">
       <div className="tarjeta-login">

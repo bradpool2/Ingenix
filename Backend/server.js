@@ -10,12 +10,14 @@ app.use(express.json());
 
 const SECRET = "clave_secreta";
 
+// Lee db.json
 const getUsuarios = () => {
   const data = fs.readFileSync('db.json');
   const json = JSON.parse(data);
   return json.usuarios;
 };
 
+// Ruta login con JWT
 // Login
 app.post('/login', (req, res) => {
   const { user, pass } = req.body;
@@ -29,6 +31,7 @@ app.post('/login', (req, res) => {
     return res.status(401).json({ mensaje: "Credenciales incorrectas" });
   }
 
+  // Generar token
   const token = jwt.sign(
     { id: usuario.id, rol: usuario.rol },
     SECRET,
