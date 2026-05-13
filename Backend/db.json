@@ -150,6 +150,28 @@
       "total": 18000,
       "fecha": "7/4/2026",
       "id": "JUQkwfp"
+    },
+    {
+      "orden": "11",
+      "tipo": "reloj",
+      "subtipo": "De pulso",
+      "danos": [
+        "Corona rota o floja",
+        "Tapa trasera dañada"
+      ],
+      "servicios": [
+        {
+          "nombre": "Limpieza de mecanismo",
+          "precio": 30000
+        },
+        {
+          "nombre": "Ajuste de hora",
+          "precio": 2000
+        }
+      ],
+      "total": 32000,
+      "fecha": "11/5/2026",
+      "id": "uQPjZv5"
     }
   ],
   "$schema": "./node_modules/json-server/schema.json"
