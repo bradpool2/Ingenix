@@ -1,0 +1,65 @@
+/* Contenedor principal que envuelve el Sidebar y el Contenido */
+.principal {
+    display: flex;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+  
+  .sidebar {
+    width: 260px;
+    background-color: #ffffff; 
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+  }
+  
+  .sidebar h2 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #34495e;
+    padding-bottom: 10px;
+  }
+  
+  .sidebar ul {
+    list-style: none;
+    padding: 0;
+    width: 100%;
+  }
+  
+  .sidebar li {
+    margin: 10px 0;
+  }
+  
+  /* Estilos para los enlaces (Link de react-router-dom) */
+  .sidebar a {
+    color: #bdc3c7;
+    text-decoration: none;
+    display: block;
+    padding: 12px 15px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    text-align: left; /* Cambia a 'center' si quieres centrar el texto después */
+  }
+  
+  /* Efecto Hover para las solicitudes */
+  .sidebar a:hover {
+    background-color: #34495e;
+    color: #ffffff;
+    padding-left: 25px; /* Pequeño efecto de movimiento */
+  }
+  
+  /* Estilo para la ruta activa */
+  .sidebar a.active {
+    background-color: #3498db;
+    color: white;
+  }
+  
+  /* Área de contenido donde se verán las tablas */
+  .content {
+    flex-grow: 1;
+    padding: 40px;
+    background-color: #f8f9fa;
+  }
