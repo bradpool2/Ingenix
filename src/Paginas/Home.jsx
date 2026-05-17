@@ -13,13 +13,13 @@
   function Home() {
     
     function RutaProtegida({ children }) {
-      const user = localStorage.getItem('user');
+      const user = localstorage.getItem('user');
     
       return user ? children : <Navigate to="/" replace />;
     }
     const navigate = useNavigate();
     const cerrarSesion = () => {
-  localStorage.removeItem('user');
+  localstorage.removeItem('user');
   sessionStorage.clear();
 
   navigate('/', { replace: true }); 

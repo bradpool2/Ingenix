@@ -37,6 +37,10 @@ export default function AdminPanel() {
     const updated = await res.json();
     setUsers(users.map(u => u.id === updated.id ? updated : u));
   };
+   const deleteUser = async (id) => {
+    await fetch(`http://localhost:3000/usuarios/${users.id}`, { method: "DELETE" });
+    setUsers(users.filter(u => u.id !== id));
+  };
 
   const addProduct = async (data) => {
     const res = await fetch("http://localhost:3000/productos", {
@@ -76,7 +80,6 @@ export default function AdminPanel() {
         Productos</button>
       </aside>
 
-      {/* MAIN — solo el contenido cambia */}
       <main className="main-section">
         <div className="main-header">
           {VIEWS[view].label}
@@ -94,7 +97,7 @@ export default function AdminPanel() {
               </div>
             </div>
           )}
-          {view === 'users'    && <UserManagement users={users} onUpdate={updateUser} />}
+          {view === 'users'    && <UserManagement users={users} onUpdate={updateUser} onDelete={deleteUser} />}
           {view === 'products' && <Catalog products={products} onAdd={addProduct} onDelete={deleteProduct} />}
         </div>
       </main>
