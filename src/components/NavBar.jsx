@@ -1,9 +1,17 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import '../CSS/NavBar.css';
 import logo from '../assets/Logo_reloj.png';
 
-function NavBar({ cerrarSesion }) {
+function NavBar() {
+  const navigate = useNavigate();
+
+  const cerrarSesion = () => {
+  localStorage.removeItem('user');
+  sessionStorage.clear();
+
+  navigate('/', { replace: true }); 
+};
   const user = JSON.parse(localStorage.getItem('user'));
 
   

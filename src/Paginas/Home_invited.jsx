@@ -18,6 +18,7 @@
     localStorage.removeItem('user'); 
     navigate('/');
   };
+  
 
     return (
       <div className="App">
