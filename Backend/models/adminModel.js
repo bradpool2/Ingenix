@@ -19,7 +19,6 @@ const adminModel = {
         db.query(query, [email], callback);
     },*/
 
-    // Insertar un nuevo usuario
     create: (userData, callback) => {
         const { id_usuario, email, nombre, contrasena } = userData;
         const query = 'INSERT INTO usuarios(id_usuario, email, nombre, contrasena) VALUES (?, ?, ?, ?)';
@@ -27,4 +26,4 @@ const adminModel = {
     }
 };
 
-export default UserModel; // CAMBIADO: Antes era module.exports
+export default adminModel; 

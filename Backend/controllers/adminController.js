@@ -1,4 +1,4 @@
-import AdminService from '../services/adminServices.js';
+import UserService from '../services/adminServices.js';
 
 const UserController = {
     // Listar todos los usuarios

@@ -1,20 +1,19 @@
 import mysql from 'mysql2';
-// Creamos la conexión
-const conexion = mysql.createConnection({
+import 'dotenv/config';
+ 
+const conexion = mysql.createPool({
     host: 'localhost',
     database: 'Ingenix',
     user: 'root',
     password: ''
 });
-
-// Verificar la conexión
-conexion.connect(error => {
+ 
+conexion.getConnection((error, connection) => {
     if (error) {
         console.error('❌ Error de Conexión a MySQL:', error.message);
     } else {
         console.log('✅ Conexión a Base de Datos MySQL Correcta');
     }
 });
-
-// Exportamos la conexión  usarla en los modelos
+ 
 export default conexion;

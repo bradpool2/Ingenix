@@ -64,4 +64,4 @@ const adminService = {
     }
 };
 
-export default UserService; // CAMBIADO: Antes era module.exports
+export default AdminServices; // CAMBIADO: Antes era module.exports
