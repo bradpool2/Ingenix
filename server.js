@@ -43,7 +43,18 @@ app.post('/login', (req, res) => {
                 { expiresIn: '2h' }
             );
 
-            res.json({ mensaje: 'Login exitoso', token, usuario });
+            // ✅ Solo devolvemos los campos necesarios, incluyendo rol del JOIN
+            res.json({
+                mensaje: 'Login exitoso',
+                token,
+                usuario: {
+                    idUsuario: usuario.idUsuario,
+                    nombre: usuario.nombre,
+                    correo: usuario.correo,
+                    telefono: usuario.telefono,
+                    rol: usuario.rol
+                }
+            });
         }
     );
 });
@@ -88,7 +99,6 @@ app.post('/usuario', (req, res) => {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
-    // ✅ SHA2(?, 256) — mismo hash que usa el login para verificar
     conexion.query(
         'INSERT INTO usuario (nombre, correo, documento, telefono, pass, TipoDocumento_idTipoDocumento, rol_idRol) VALUES (?, ?, ?, ?, SHA2(?, 256), ?, ?)',
         [nombre, correo, documento, telefono, pass, TipoDocumento_idTipoDocumento, rol_idRol],

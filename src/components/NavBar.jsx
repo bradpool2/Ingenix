@@ -54,7 +54,7 @@ function NavBar() {
             {user.rol === 'cliente' && (
               <>
                 <Link to="/mis-solicitudes">Mis Solicitudes</Link>
-                <Link to="/perfil">Perfil</Link>
+                <Link to="/Perfil">Perfil</Link>
               </>
             )}
           </>
