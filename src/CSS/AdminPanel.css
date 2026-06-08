@@ -6,6 +6,184 @@ body{
   
 
 }
+.view-content {
+  padding: 20px;
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.form-crear-usuario {
+  background-color: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.form-crear-usuario h3 {
+  margin-top: 0;
+  margin-bottom: 18px;
+  font-size: 1.1rem;
+  color: #333333;
+  font-weight: 600;
+}
+
+.grid-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.grid-inputs input,
+.grid-inputs select {
+  flex: 1;
+  min-width: 160px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background-color: #ffffff;
+  color: #333333;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.grid-inputs input:focus,
+.grid-inputs select:focus {
+  border-color: #8b5cf6;
+}
+
+.btn-crear {
+  background-color: #000000;
+  color: #ffffff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-crear:hover {
+  background-color: #222222;
+}
+
+.divisor {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 10px 0;
+}
+
+.empty-msg {
+  text-align: center;
+  color: #888888;
+  font-size: 0.95rem;
+  margin-top: 40px;
+}
+
+.tabla-contenedor {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+}
+
+.tabla-usuarios {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.tabla-usuarios th {
+  background-color: #f8fafc;
+  color: #64748b;
+  padding: 14px 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tabla-usuarios td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #333333;
+  vertical-align: middle;
+}
+
+.tabla-usuarios tr:last-child td {
+  border-bottom: none;
+}
+
+.tabla-usuarios input,
+.tabla-usuarios select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  background-color: transparent;
+  color: #333333;
+  transition: all 0.2s;
+}
+
+.tabla-usuarios input:focus,
+.tabla-usuarios select:focus {
+  border-color: #8b5cf6;
+  background-color: #ffffff;
+  outline: none;
+}
+
+.tabla-usuarios tr:hover input,
+.tabla-usuarios tr:hover select {
+  background-color: #f8fafc;
+}
+
+.tabla-usuarios tr:hover input:focus,
+.tabla-usuarios tr:hover select:focus {
+  background-color: #ffffff;
+}
+
+.btn-acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-guardar {
+  background-color: #ebe8fc;
+  color: #5c4ec3;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-guardar:hover {
+  background-color: #dcd7fa;
+}
+
+.btn-delete {
+  background-color: #fff1f2;
+  color: #df1c1c;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-delete:hover {
+  background-color: #ffe4e6;
+}
 
 .field-select {
   font-size: 13px;
