@@ -4,8 +4,6 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import 'dotenv/config';
 import conexion from './Backend/config/db.js';
-import crypto from 'crypto';
-
 
 const app = express();
 const PUERTO = 3000;
@@ -13,41 +11,34 @@ const PUERTO = 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
+// ─── Test ──────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
     res.send('🟢 API funcionando correctamente');
 });
 
+// ─── Login ─────────────────────────────────────────────────────────────────────
 app.post('/login', (req, res) => {
     const { nombre, pass } = req.body;
+
     if (!nombre || !pass) {
         return res.status(400).json({ message: 'Faltan datos' });
     }
 
-    // Primero traemos el usuario por nombre
     conexion.query(
-        'SELECT * FROM usuario WHERE nombre = ?',
-        [nombre],
+        `SELECT u.*, r.nombreRol AS rol
+         FROM usuario u
+         JOIN rol r ON u.rol_idRol = r.idRol
+         WHERE u.nombre = ? AND u.pass = SHA2(?, 256)`,
+        [nombre, pass],
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
-            if (results.length === 0) return res.status(401).json({ message: 'Credenciales inválidas' });
+            if (results.length === 0)
+                return res.status(401).json({ message: 'Credenciales inválidas' });
 
             const usuario = results[0];
 
-            // Separar salt y hash guardado
-            const [salt, hashGuardado] = usuario.pass.split(':');
-
-            // Recalcular hash con la misma sal
-            const hashIntento = crypto.createHash('sha256')
-                .update(pass + salt)
-                .digest('hex');
-
-            // Comparar
-            if (hashIntento !== hashGuardado) {
-                return res.status(401).json({ message: 'Credenciales inválidas' });
-            }
-
             const token = jwt.sign(
-                { id: usuario.idUsuario, nombre: usuario.nombre, rol: usuario.rol_idRol },
+                { id: usuario.idUsuario, nombre: usuario.nombre, rol: usuario.rol },
                 process.env.JWT_SECRET || 'clave_secreta_temporal',
                 { expiresIn: '2h' }
             );
@@ -56,6 +47,8 @@ app.post('/login', (req, res) => {
         }
     );
 });
+
+// ─── Buscar usuario ────────────────────────────────────────────────────────────
 app.get('/usuario', (req, res) => {
     const { nombre, correo, documento } = req.query;
 
@@ -87,6 +80,7 @@ app.get('/usuario', (req, res) => {
     );
 });
 
+// ─── Crear usuario ─────────────────────────────────────────────────────────────
 app.post('/usuario', (req, res) => {
     const { nombre, correo, documento, telefono, pass, TipoDocumento_idTipoDocumento, rol_idRol } = req.body;
 
@@ -94,8 +88,9 @@ app.post('/usuario', (req, res) => {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
+    // ✅ SHA2(?, 256) — mismo hash que usa el login para verificar
     conexion.query(
-        'INSERT INTO usuario (nombre, correo, documento, telefono, pass, TipoDocumento_idTipoDocumento, rol_idRol) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO usuario (nombre, correo, documento, telefono, pass, TipoDocumento_idTipoDocumento, rol_idRol) VALUES (?, ?, ?, ?, SHA2(?, 256), ?, ?)',
         [nombre, correo, documento, telefono, pass, TipoDocumento_idTipoDocumento, rol_idRol],
         (err, results) => {
             if (err) {
@@ -107,6 +102,7 @@ app.post('/usuario', (req, res) => {
     );
 });
 
+// ─── Iniciar servidor ──────────────────────────────────────────────────────────
 app.listen(PUERTO, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
 });

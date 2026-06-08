@@ -5,7 +5,7 @@ const conexion = mysql.createPool({
     host: 'localhost',
     database: 'Ingenix',
     user: 'root',
-    password: ''
+    password: '1234'
 });
  
 conexion.getConnection((error, connection) => {
