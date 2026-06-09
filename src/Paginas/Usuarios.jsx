@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import UserManagement from './UserManagement';
-import Catalog from './Catalog';
+import UserManagement from './Usarios_Crud';
+import Catalog from './Productos_Crud';
 import '../CSS/AdminPanel.css';
 import { FaBoxesStacked } from "react-icons/fa6";
 import { FaHouseUser } from "react-icons/fa";

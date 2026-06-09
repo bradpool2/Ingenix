@@ -7,24 +7,20 @@ function NavBar() {
   const navigate = useNavigate();
 
   const cerrarSesion = () => {
-  localStorage.removeItem('user');
-  sessionStorage.clear();
+    localStorage.removeItem('user');
+    sessionStorage.clear();
+    navigate('/', { replace: true });
+  };
 
-  navigate('/', { replace: true }); 
-};
   const user = JSON.parse(localStorage.getItem('user'));
-
-  
 
   return (
     <nav>
       <div className="nav-links">
-
         <div className='logo-container'>
           <img className='logo' src={logo} alt="Logo" />
         </div>
 
-        {/* INVITADO */}
         {!user && (
           <>
             <Link to="/login">Login</Link>
@@ -32,29 +28,37 @@ function NavBar() {
           </>
         )}
 
-        {/* USUARIO LOGUEADO */}
         {user && (
           <>
             <Link to="/home">Home</Link>
 
             {user.rol === 'admin' && (
               <>
-                <Link to="/solicitud">Solicitud</Link>
+                <Link to="/panel_solicitud">Solicitudes</Link>
                 <Link to="/usuarios">Usuarios</Link>
               </>
             )}
 
             {user.rol === 'tecnico' && (
               <>
-                <Link to="/relojes">Relojes</Link>
-                <Link to="/solicitudes">Solicitudes</Link>
+                <Link to="/">Relojes</Link>
+                <Link to="/panel_solicitud">Solicitudes</Link>
               </>
             )}
 
-            {user.rol === 'cliente' && (
+            {(user.rol === 'Cliente' || user.rol === 'cliente') && (
               <>
                 <Link to="/mis-solicitudes">Mis Solicitudes</Link>
                 <Link to="/Perfil">Perfil</Link>
+                <Link to="/panel_solicitud">Solicitudes</Link>
+              </>
+            )}
+
+            {user.rol === 'usuario' && (
+              <>
+                <Link to="/mis-solicitudes">Mis Solicitudes</Link>
+                <Link to="/catalogo">Catálogo</Link>   {/* ← agrega esta línea */}
+                <Link to="/perfil">Perfil</Link>
               </>
             )}
           </>

@@ -1,48 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../CSS/Solicitudes.css';
-// import { IconName } from "react-icons/bi";
-import { BiAlignJustify } from "react-icons/bi";
-import { BiAlignRight } from "react-icons/bi";
-import NavBar  from '../components/NavBar';
+import { BiAlignJustify, BiAlignRight } from "react-icons/bi";
 
-
-
-function Solicitud() {
+export default function SolicitudMantenimiento() {
   const navigate = useNavigate();
-  const finalizar = async () => {
-    const nuevaSolicitud = {
-      orden,
-      tipo,
-      subtipo,
-      danos,
-      servicios,
-      total: totalEstimado,
-      fecha: new Date().toLocaleDateString('es-CO')
-    };
-  
-    await fetch('http://localhost:3000/solicitudes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(nuevaSolicitud)
-    });
-  
-    alert('Solicitud guardada correctamente');
-    cambiarVista('home');
-  };
-  
-  const pasoValido = () => {
-    switch (paso) {
-      case 1: return orden.trim() !== '';
-      case 2: return tipo !== '' && subtipo !== '';
-      case 3: return danos.length > 0;
-      case 4: return servicios.length > 0;
-      default: return true;
-    }
-  };
 
-  // --- ESTADOS ---
-  const [paso, setPaso] = useState(1);
+  const [pestanaActiva, setPestanaActiva] = useState(1);
   const [orden, setOrden] = useState('');
   const [tipo, setTipo] = useState('');
   const [subtipo, setSubtipo] = useState('');
@@ -51,7 +15,6 @@ function Solicitud() {
   const [piezas, setPiezas] = useState({});
   const [verResumen, setVerResumen] = useState(false);
 
-  // --- DATOS ---
   const danosData = {
     reloj: [
       { zona: 'Exterior', items: ['Vidrio rayado o roto', 'Caja golpeada', 'Corona rota o floja', 'Tapa trasera dañada'] },
@@ -130,9 +93,34 @@ function Solicitud() {
     { nombre: 'Corona / botón' }
   ];
 
-  // --- FUNCIONES ---
-  const navegar = (dir) => {
-    setPaso(p => Math.max(1, Math.min(6, p + dir)));
+  const finalizar = async () => {
+    const nuevaSolicitud = {
+      orden,
+      tipo,
+      subtipo,
+      danos,
+      services: servicios,
+      total: totalEstimado,
+      fecha: new Date().toLocaleDateString('es-CO')
+    };
+  
+    try {
+      const res = await fetch('http://localhost:3000/solicitudes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevaSolicitud)
+      });
+      if (res.ok) {
+        alert('Solicitud guardada correctamente');
+        navigate('/panel_solicitud');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const formularioCompleto = () => {
+    return orden.trim() !== '' && tipo !== '' && subtipo !== '' && danos.length > 0 && servicios.length > 0;
   };
 
   const toggleDano = (item) => {
@@ -166,41 +154,31 @@ function Solicitud() {
     servicios.reduce((a, s) => a + s.precio, 0) +
     Object.values(piezas).reduce((a, v) => a + v, 0);
 
-  // --- RENDER ---
+  const pestañas = [
+    { id: 1, label: '1. Orden' },
+    { id: 2, label: '2. Clasificación' },
+    { id: 3, label: '3. Daños' },
+    { id: 4, label: '4. Servicios' },
+    { id: 5, label: '5. Piezas' },
+    { id: 6, label: '6. Resumen' }
+  ];
+
   return (
-    
-    
-    <div style={{ position: 'relative' }}>
-     <div style={{ 
-      display: 'flex', 
-      justifyContent: 'flex-start', 
-      marginBottom: '20px',
-      position: 'relative',
-      zIndex: 10 
-    }}>
-      <NavBar />
-    </div>
+    <div className="solicitud-root-container">
+      
+      <button className="btn-resumen-flotante" onClick={() => setVerResumen(!verResumen)}>
+        <span className="icono">
+          {verResumen ? <BiAlignRight color='black'/> : <BiAlignJustify color='black'/> }
+        </span>
+      </button>
 
-      <button
-  className="btn-resumen-flotante"
-  onClick={() => setVerResumen(!verResumen)}
->
-  <span className="icono">
-    {verResumen ? <BiAlignRight color='black'/> : <BiAlignJustify color='black'/> }
-  </span>
-</button>
-
-      {/* Panel lateral */}
       <div className={`panel-resumen ${verResumen ? 'abierto' : ''}`}>
-        <p className="formulario-titulo" style={{ marginBottom: '1rem' }}>Resumen</p>
-
+        <p className="formulario-titulo-resumen">Resumen Rápido</p>
         <p className="seccion-label">Orden</p>
         <p className="resumen-valor">{orden || '—'}</p>
 
         <p className="seccion-label">Producto</p>
         <p className="resumen-valor">
-
-
           {tipo ? tipo.charAt(0).toUpperCase() + tipo.slice(1) : '—'}
           {subtipo ? ` — ${subtipo}` : ''}
         </p>
@@ -239,20 +217,23 @@ function Solicitud() {
         </div>
       </div>
 
-      {/* Formulario */}
-      <div className="formulario-contenedor">
-        <div className="formulario-tarjeta">
+      <div className="layout-pestañas-panel">
+        
+        <div className="pestanas-navegacion">
+          {pestañas.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={`pestana-link ${pestanaActiva === p.id ? 'activa' : ''}`}
+              onClick={() => setPestanaActiva(p.id)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Barra de pasos */}
-          <div className="formulario-barra">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className={`formulario-punto ${i < paso ? 'activo' : ''}`} />
-            ))}
-          </div>
-          <p className="formulario-paso-label">Paso {paso} de 6</p>
-
-          {/* PASO 1 */}
-          {paso === 1 && (
+        <div className="formulario-tarjeta-pestanas">
+          {pestanaActiva === 1 && (
             <div>
               <p className="formulario-titulo">Número de orden</p>
               <p className="formulario-subtitulo">Ingresa el número de orden del cliente</p>
@@ -266,12 +247,11 @@ function Solicitud() {
             </div>
           )}
 
-          {/* PASO 2 */}
-          {paso === 2 && (
+          {pestanaActiva === 2 && (
             <div>
               <p className="formulario-titulo">¿Qué entró al taller?</p>
               <p className="formulario-subtitulo">Selecciona el tipo de producto</p>
-              <div style={{ display: 'flex', gap: '12px', marginBottom: '1rem' }}>
+              <div className="contenedor-tipo-producto">
                 <div
                   className={`btn-tipo ${tipo === 'reloj' ? 'sel' : ''}`}
                   onClick={() => { setTipo('reloj'); setSubtipo(''); }}
@@ -290,7 +270,7 @@ function Solicitud() {
               {tipo && (
                 <div>
                   <p className="seccion-label">Subtipo</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  <div className="contenedor-subtipo-items">
                     {(tipo === 'reloj'
                       ? ['De pulso', 'De bolsillo', 'De pared', 'Despertador']
                       : ['Anillo', 'Cadena', 'Pulsera', 'Aretes', 'Dije']
@@ -309,51 +289,28 @@ function Solicitud() {
             </div>
           )}
 
-          {/* PASO 3 */}
-          {paso === 3 && (
+          {pestanaActiva === 3 && (
             <div>
               <p className="formulario-titulo">Daños encontrados</p>
               <p className="formulario-subtitulo">Marca todo lo que observas</p>
+              {!tipo && <p className="resumen-vacio">Por favor selecciona primero el tipo de producto en la pestaña 2.</p>}
               {danosData[tipo]?.map((zona) => (
-                <div key={zona.zona}>
+                <div key={zona.zona} className="bloque-zona-seccion">
                   <p className="seccion-label">{zona.zona}</p>
-                  {zona.items.map((item) => (
-                    <div
-                      key={item}
-                      className={`check-item ${danos.includes(item) ? 'sel' : ''}`}
-                      onClick={() => toggleDano(item)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={danos.includes(item)}
-                        onChange={() => toggleDano(item)}
-                        onClick={e => e.stopPropagation()}
-                      />
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* PASO 4 */}
-          {paso === 4 && (
-            <div>
-              <p className="formulario-titulo">Servicios de mano de obra</p>
-              <p className="formulario-subtitulo">Selecciona los servicios a realizar</p>
-              {serviciosData[tipo]?.map((zona) => (
-                <div key={zona.zona}>
-                  <p className="seccion-label">{zona.zona}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {zona.items.map((s) => (
+                  <div className="grid-opciones-compactas">
+                    {zona.items.map((item) => (
                       <div
-                        key={s.nombre}
-                        className={`servicio-item ${servicios.find(x => x.nombre === s.nombre) ? 'sel' : ''}`}
-                        onClick={() => toggleServicio(s)}
+                        key={item}
+                        className={`check-item ${danos.includes(item) ? 'sel' : ''}`}
+                        onClick={() => toggleDano(item)}
                       >
-                        <span>{s.nombre}</span>
-                        <span className="servicio-precio">${s.precio.toLocaleString('es-CO')} COP</span>
+                        <input
+                          type="checkbox"
+                          checked={danos.includes(item)}
+                          onChange={() => toggleDano(item)}
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <span className="texto-item-check">{item}</span>
                       </div>
                     ))}
                   </div>
@@ -362,12 +319,36 @@ function Solicitud() {
             </div>
           )}
 
-          {/* PASO 5 */}
-          {paso === 5 && (
+          {pestanaActiva === 4 && (
+            <div>
+              <p className="formulario-titulo">Servicios de mano de obra</p>
+              <p className="formulario-subtitulo">Selecciona los servicios a realizar</p>
+              {!tipo && <p className="resumen-vacio">Por favor selecciona primero el tipo de producto en la pestaña 2.</p>}
+              {serviciosData[tipo]?.map((zona) => (
+                <div key={zona.zona} className="bloque-zona-seccion">
+                  <p className="seccion-label">{zona.zona}</p>
+                  <div className="grid-opciones-compactas">
+                    {zona.items.map((s) => (
+                      <div
+                        key={s.nombre}
+                        className={`servicio-item ${servicios.find(x => x.nombre === s.nombre) ? 'sel' : ''}`}
+                        onClick={() => toggleServicio(s)}
+                      >
+                        <span>{s.nombre}</span>
+                        <span className="servicio-precio-tag">${s.precio.toLocaleString('es-CO')} COP</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {pestanaActiva === 5 && (
             <div>
               <p className="formulario-titulo">Piezas a reemplazar</p>
               <p className="formulario-subtitulo">Marca las piezas e ingresa su precio en COP</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="grid-opciones-compactas">
                 {piezasData.map((p) => (
                   <div key={p.nombre} className={`pieza-item ${piezas[p.nombre] !== undefined ? 'sel' : ''}`}>
                     <input
@@ -375,10 +356,10 @@ function Solicitud() {
                       checked={piezas[p.nombre] !== undefined}
                       onChange={() => togglePieza(p.nombre)}
                     />
-                    <span style={{ flex: 1 }}>{p.nombre}</span>
+                    <span className="texto-pieza-nombre">{p.nombre}</span>
                     <input
                       type="number"
-                      className="pieza-precio"
+                      className="pieza-precio-input"
                       placeholder="Precio COP"
                       disabled={piezas[p.nombre] === undefined}
                       value={piezas[p.nombre] || ''}
@@ -389,63 +370,52 @@ function Solicitud() {
               </div>
             </div>
           )}
-          {paso === 6 && (
-  <div>
-    <p className="formulario-titulo">Resumen del diagnóstico</p>
-    <p className="formulario-subtitulo">Revisa todo antes de finalizar</p>
 
-    <p className="seccion-label">Orden</p>
-    <p className="resumen-valor">{orden}</p>
+          {pestanaActiva === 6 && (
+            <div>
+              <p className="formulario-titulo">Resumen del diagnóstico</p>
+              <p className="formulario-subtitulo">Revisa todo antes de finalizar</p>
+              <div className="grid-resumen-dos-columnas">
+                <div className='resumen-columna'>
+                  <p className="seccion-label">Orden</p>
+                  <p className="resumen-valor">{orden || '—'}</p>
+                  <p className="seccion-label">Producto</p>
+                  <p className="resumen-valor">
+                    {tipo ? tipo.charAt(0).toUpperCase() + tipo.slice(1) : '—'} {subtipo ? `— ${subtipo}` : ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="seccion-label">Daños encontrados</p>
+                  {danos.length === 0 ? <p className="resumen-vacio">Ninguno</p> : danos.map(d => <p key={d} className="resumen-item">{d}</p>)}
+                </div>
+              </div>
+              
+              <p className="seccion-label">Servicios</p>
+              {servicios.length === 0 ? <p className="resumen-vacio">Ninguno</p> : servicios.map(s => (
+                <div key={s.nombre} className="resumen-fila">
+                  <span>{s.nombre}</span>
+                  <span>${s.precio.toLocaleString('es-CO')} COP</span>
+                </div>
+              ))}
+              
+              <div className="resumen-total-final">
+                <span>Total estimado</span>
+                <span>${totalEstimado.toLocaleString('es-CO')} COP</span>
+              </div>
+            </div>
+          )}
 
-    <p className="seccion-label">Producto</p>
-    <p className="resumen-valor">
-      {tipo.charAt(0).toUpperCase() + tipo.slice(1)} — {subtipo}
-    </p>
-
-    <p className="seccion-label">Daños encontrados</p>
-    {danos.map(d => (
-      <p key={d} className="resumen-item">{d}</p>
-    ))}
-
-    <p className="seccion-label">Servicios</p>
-    {servicios.map(s => (
-      <div key={s.nombre} className="resumen-fila">
-        <span>{s.nombre}</span>
-        <span>${s.precio.toLocaleString('es-CO')} COP</span>
-      </div>
-    ))}
-
-    <div className="resumen-total">
-      <span>Total estimado</span>
-      <span>${totalEstimado.toLocaleString('es-CO')} COP</span>
-    </div>
-  </div>
-)}
-
-          {/* NAVEGACIÓN */}
-          <div className="formulario-nav">
-            {paso > 1
-              ? <button className="btn-atras" onClick={() => navegar(-1)}>Atrás</button>
-              : <span />
-            }
+          <div className="contenedor-nav-final">
             <button
-  className={`btn-siguiente ${!pasoValido() ? 'desactivado' : ''}`}
-  onClick={() => {
-    if (!pasoValido()) return;
-    if (paso === 6) finalizar();
-    else navegar(1);
-  }}
->
-  {paso === 6 ? 'Guardar solicitud' : 'Siguiente'}
-</button>
+              className={`btn-siguiente ${!formularioCompleto() ? 'desactivado' : ''}`}
+              disabled={!formularioCompleto()}
+              onClick={finalizar}
+            >
+              Guardar solicitud
+            </button>
           </div>
-
         </div>
-        
       </div>
-      
     </div>
   );
 }
-
-export default Solicitud;

@@ -1,7 +1,6 @@
   import '../CSS/Global.css'
   import { useNavigate } from 'react-router-dom';
   import NavBar from '../components/NavBar';
-  import relojes from './Relojes'
   import { IoIosClock } from "react-icons/io";
   import { GiDiamondRing } from "react-icons/gi";
   import { RiJewelryLine } from "react-icons/ri";
@@ -13,13 +12,13 @@
   function Home() {
     
     function RutaProtegida({ children }) {
-      const user = localstorage.getItem('user');
+      const user = localStorage.getItem('user') ;
     
       return user ? children : <Navigate to="/" replace />;
     }
     const navigate = useNavigate();
     const cerrarSesion = () => {
-  localstorage.removeItem('user');
+  localStorage.removeItem('user');
   sessionStorage.clear();
 
   navigate('/', { replace: true }); 
@@ -34,9 +33,6 @@
   <h1>Servicio de Relojería y Joyería</h1>
   <p>Reparación, mantenimiento y venta de relojes y accesorios</p>
 
-  <button onClick={() => navigate({relojes})}>
-    Ver productos
-  </button>
 </section>
 <section className="servicios">
   <div className="card">
@@ -66,7 +62,7 @@
             Consulta relojes clásicos <br />
             [PP, Rolex, Cartier, Vancheron]
             </p>    
-            <button type="button" className="btn btn-outline-dark" onClick={() => cambiarVista('Relojes')}>Consultar</button>
+            <button type="button" className="btn btn-outline-dark" onClick={() => navigate('/relojess')}>Consultar</button>
             </div>
           </div>
           <div className="card" >
