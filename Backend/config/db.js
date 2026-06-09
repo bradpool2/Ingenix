@@ -3,7 +3,7 @@ import 'dotenv/config';
  
 const conexion = mysql.createPool({
     host: 'localhost',
-    database: 'Ingenix',
+    database: 'ingenix',
     user: 'root',
     password: '1234'
 });
