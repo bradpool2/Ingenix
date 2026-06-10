@@ -29,7 +29,6 @@ function Register() {
     }
 
     try {
-      // verificar correo
       const resCheck = await fetch(
         `http://localhost:3000/usuario?correo=${datos.correo}`,
       );
@@ -54,7 +53,7 @@ function Register() {
       }
 
       // registrar usuario
-      const res = await fetch("http://localhost:3000/usuario", {
+      const res = await fetch("http://localhost:3000/usuarios", { // <--- ¡AQUÍ AGREGA LA 's' AL FINAL!
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -65,11 +64,9 @@ function Register() {
           documento: datos.documento,
           telefono: datos.telefono,
           pass: datos.pass,
-
-          // FK de tipo documento
+      
           TipoDocumento_idTipoDocumento: parseInt(datos.tipoDocumento),
-
-          // rol usuario normal
+      
           rol_idRol: 3,
         }),
       });

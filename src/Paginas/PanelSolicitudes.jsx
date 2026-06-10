@@ -1,14 +1,19 @@
 import React from 'react';
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import NavBar from '../components/NavBar';
+import DashboardBienvenida from './DashboardBienvenida'; // Importamos el diseño del Dashboard
 import '../CSS/PanelSol.css';
 
 const PanelSolicitudes = () => {
   const userString = localStorage.getItem('user');
   const usuarioLogueado = userString ? JSON.parse(userString) : null;
   const rol = usuarioLogueado?.rol || '';
-
   const esAdminOTecnico = rol === 'admin' || rol === 'tecnico';
+
+  // Usamos useLocation para saber en qué URL exacta está el usuario
+  const location = useLocation();
+
+  const mostrarDashboard = location.pathname === '/panel_solicitud' || location.pathname === '/panel_solcitud/';
 
   return (
     <div className="principal">
@@ -39,7 +44,7 @@ const PanelSolicitudes = () => {
       </nav>
 
       <main className="content">
-        <Outlet />
+        {mostrarDashboard ? <DashboardBienvenida /> : <Outlet />}
       </main>
     </div>
   );

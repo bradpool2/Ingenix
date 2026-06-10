@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 
 function Login() {
   const navigate = useNavigate();
-  const [nombreInput, setNombreInput] = useState('');
+  const [correoInput, setCorreoInput] = useState('');
   const [passInput, setPassInput] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const validar = async () => {
     setError('');
-    if (!nombreInput || !passInput) {
+    if (!correoInput || !passInput) {
       setError('Completa todos los campos');
       return;
     }
@@ -20,7 +20,7 @@ function Login() {
       const res = await fetch('http://localhost:3000/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: nombreInput, pass: passInput })
+        body: JSON.stringify({ correo: correoInput, pass: passInput })
       });
 
       const data = await res.json();

@@ -2,6 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import 'dotenv/config';
 import conexion from './Backend/config/db.js';
 import rutasSolicitudes from './Backend/Routes/solicitudes.js';
@@ -20,9 +21,9 @@ app.get('/', (req, res) => {
 });
 
 app.post('/login', (req, res) => {
-    const { nombre, pass } = req.body;
+    const { correo, pass } = req.body;
 
-    if (!nombre || !pass) {
+    if (!correo || !pass) {
         return res.status(400).json({ message: 'Faltan datos' });
     }
 
@@ -30,14 +31,19 @@ app.post('/login', (req, res) => {
         `SELECT u.*, r.nombreRol AS rol
          FROM usuario u
          JOIN rol r ON u.rol_idRol = r.idRol
-         WHERE u.nombre = ? AND u.pass = ?`,
-        [nombre, pass],
-        (err, results) => {
+         WHERE u.correo = ?`,
+        [correo],
+        async (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             if (results.length === 0)
                 return res.status(401).json({ message: 'Credenciales inválidas' });
 
             const usuario = results[0];
+            const coinciden = await bcrypt.compare(pass, usuario.pass);
+            
+            if (!coinciden) {
+                return res.status(401).json({ message: 'Credenciales inválidas' });
+            }
 
             const token = jwt.sign(
                 { id: usuario.idUsuario, nombre: usuario.nombre, rol: usuario.rol },
@@ -48,6 +54,33 @@ app.post('/login', (req, res) => {
             res.json({ mensaje: 'Login exitoso', token, usuario });
         }
     );
+});
+
+app.get('/usuario', (req, res) => {
+    const { correo, documento } = req.query;
+
+    if (!correo && !documento) {
+        return res.status(400).json({ message: 'Se requiere el parámetro correo o documento para validar.' });
+    }
+
+    let sql = 'SELECT idUsuario, nombre, correo, documento FROM usuario WHERE ';
+    let parametro = '';
+
+    if (correo) {
+        sql += 'correo = ?';
+        parametro = correo;
+    } else if (documento) {
+        sql += 'documento = ?';
+        parametro = documento;
+    }
+
+    conexion.query(sql, [parametro], (err, results) => {
+        if (err) {
+            console.error('❌ Error en GET /usuario:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results); 
+    });
 });
 
 app.get('/usuarios', (req, res) => {
@@ -62,24 +95,31 @@ app.get('/usuarios', (req, res) => {
     );
 });
 
-app.post('/usuarios', (req, res) => {
+app.post('/usuarios', async (req, res) => {
     const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
 
     if (!nombre || !correo || !documento || !pass) {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
-    conexion.query(
-        'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?)',
-        [nombre, correo, documento, direccion, pass, rol_idRol || 1],
-        (err, results) => {
-            if (err) {
-                docConsole.error('❌ Error POST /usuarios:', err);
-                return res.status(500).json({ error: err.message });
+    try {
+        const saltos = await bcrypt.genSalt(10);
+        const passEncriptada = await bcrypt.hash(pass, saltos);
+
+        conexion.query(
+            'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombre, correo, documento, direccion, passEncriptada, rol_idRol || 1],
+            (err, results) => {
+                if (err) {
+                    console.error('❌ Error POST /usuarios:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.status(201).json({ message: 'Usuario creado con éxito', idUsuario: results.insertId });
             }
-            res.status(201).json({ message: 'Usuario creado', idUsuario: results.insertId });
-        }
-    );
+        );
+    } catch (error) {
+        res.status(500).json({ error: 'Error interno al procesar la contraseña' });
+    }
 });
 
 app.put('/usuarios/:id', (req, res) => {
@@ -161,6 +201,70 @@ app.delete('/productos/:id', (req, res) => {
             return res.status(500).json({ error: err.message });
         }
         res.json({ message: 'Producto eliminado con éxito' });
+    });
+});
+
+app.get('/api/dashboard/estadisticas', (req, res) => {
+    const sql = `
+        SELECT 
+            COUNT(*) as total_solicitudes,
+            IFNULL(SUM(total_estimado), 0) as suma_total
+        FROM solicitud
+    `;
+    
+    conexion.query(sql, (err, results) => {
+        if (err) {
+            console.error("❌ Error al obtener estadísticas:", err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        const datos = results[0];
+        res.json({
+            mantenimientos: `${datos.total_solicitudes} Activos`,
+            entregas: "Pendientes", 
+            totalEstimado: `${Number(datos.suma_total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`
+        });
+    });
+});
+
+app.get('/api/dashboard/ultimas-solicitudes', (req, res) => {
+    const sql = `
+        SELECT idSolicitud, DATE_FORMAT(fecha_registro, '%d/%m/%Y') AS fecha, total_estimado 
+        FROM solicitud 
+        ORDER BY fecha_registro DESC 
+        LIMIT 5
+    `;
+    
+    conexion.query(sql, (err, results) => {
+        if (err) {
+            console.error("❌ Error al obtener últimas solicitudes:", err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);
+    });
+});
+
+app.get('/api/tecnico/solicitudes', (req, res) => {
+    const sql = `
+        SELECT idSolicitud, DATE_FORMAT(fecha_registro, '%d/%m/%Y') AS fecha, total_estimado, estado 
+        FROM solicitud 
+        ORDER BY fecha_registro DESC
+    `;
+    conexion.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.put('/api/tecnico/solicitudes/:id/estado', (req, res) => {
+    const { id } = req.params;
+    const { nuevoEstado } = req.body;
+
+    const sql = `UPDATE solicitud SET estado = ? WHERE idSolicitud = ?`;
+    
+    conexion.query(sql, [nuevoEstado, id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: `Solicitud #${id} actualizada a ${nuevoEstado} con éxito` });
     });
 });
 
