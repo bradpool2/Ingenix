@@ -61,6 +61,37 @@ app.post('/login', (req, res) => {
     );
 });
 
+<<<<<<< HEAD
+=======
+app.get('/usuario', (req, res) => {
+    const { correo, documento } = req.query;
+    
+
+    if (!correo && !documento) {
+        return res.status(400).json({ message: 'Se requiere el parámetro correo o documento para validar.' });
+    }
+
+    let sql = 'SELECT idUsuario, nombre, correo, documento FROM usuario WHERE ';
+    let parametro = '';
+
+    if (correo) {
+        sql += 'correo = ?';
+        parametro = correo;
+    } else if (documento) {
+        sql += 'documento = ?';
+        parametro = documento;
+    }
+
+    conexion.query(sql, [parametro], (err, results) => {
+        if (err) {
+            console.error('❌ Error en GET /usuario:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results); 
+    });
+});
+
+>>>>>>> e2fa39c (Correcion vistas roles & login/register)
 app.get('/usuarios', (req, res) => {
     conexion.query(
         `SELECT u.idUsuario, u.nombre, u.correo, u.documento, u.direccion, u.rol_idRol, r.nombreRol AS rol 

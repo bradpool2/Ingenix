@@ -54,7 +54,11 @@ function Register() {
       }
 
       // registrar usuario
+<<<<<<< HEAD
       const res = await fetch("http://localhost:3000/usuario", {
+=======
+      const res = await fetch("http://localhost:3000/usuarios", {
+>>>>>>> e2fa39c (Correcion vistas roles & login/register)
         method: "POST",
         headers: {
           "Content-Type": "application/json",
