@@ -10,7 +10,6 @@ const PanelSolicitudes = () => {
   const rol = usuarioLogueado?.rol || '';
   const esAdminOTecnico = rol === 'admin' || rol === 'tecnico';
 
-  // Usamos useLocation para saber en qué URL exacta está el usuario
   const location = useLocation();
 
   const mostrarDashboard = location.pathname === '/panel_solicitud' || location.pathname === '/panel_solcitud/';

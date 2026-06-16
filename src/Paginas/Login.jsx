@@ -54,7 +54,7 @@ function Login() {
           <label>Correo electronico</label>
           <input
             type="email"
-            placeholder="Ej: Brayan Moreno"
+            placeholder="Ej: Juan@ingenix.com"
             value={correoInput}
             onChange={(e) => setCorreoInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && validar()}

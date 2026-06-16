@@ -11,6 +11,7 @@ import Register from './Paginas/Register'
 import Home_invited from './Paginas/Home_invited'
 import Panel_Solicitud from './Paginas/PanelSolicitudes'
 import Solicitud from './Paginas/SolicitudMantenimiento'
+import SolicitudEntrega from './Paginas/SolicitudEntrega'
 import RutaProtegida from './components/RutaProtegida'
 
 createRoot(document.getElementById('root')).render(
@@ -30,7 +31,7 @@ createRoot(document.getElementById('root')).render(
         
         <Route path="/panel_solicitud" element={<Panel_Solicitud />}>
           <Route path="mantenimiento" element={<Solicitud />} />
-          <Route path="Entrega" element={<div>Vista Solicitud Entrega</div>} />
+          <Route path="Entrega" element={<SolicitudEntrega/>} />
           <Route path="Venta" element={<div>Vista Solicitud Venta</div>} />
           <Route path="Almacenado" element={<div>Vista Solicitud Almacenado</div>} />
         </Route>
