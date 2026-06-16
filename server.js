@@ -58,6 +58,7 @@ app.post('/login', (req, res) => {
 
 app.get('/usuario', (req, res) => {
     const { correo, documento } = req.query;
+    
 
     if (!correo && !documento) {
         return res.status(400).json({ message: 'Se requiere el parámetro correo o documento para validar.' });

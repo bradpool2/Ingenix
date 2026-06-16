@@ -12,7 +12,7 @@
 
 
 
-  function Home_invited({cambiarVista}) {
+  function Home_invited() {
     const navigate = useNavigate();
     const cerrarSesion = () => {
     localStorage.removeItem('user'); 

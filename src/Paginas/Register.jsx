@@ -53,7 +53,7 @@ function Register() {
       }
 
       // registrar usuario
-      const res = await fetch("http://localhost:3000/usuarios", { // <--- ¡AQUÍ AGREGA LA 's' AL FINAL!
+      const res = await fetch("http://localhost:3000/usuarios", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -51,12 +51,12 @@ function Login() {
         </div>
         <div className="formulario">
           {error && <p style={{ color: 'red', marginBottom: '10px' }}>{error}</p>}
-          <label>Usuario</label>
+          <label>Correo electronico</label>
           <input
-            type="text"
+            type="email"
             placeholder="Ej: Brayan Moreno"
-            value={nombreInput}
-            onChange={(e) => setNombreInput(e.target.value)}
+            value={correoInput}
+            onChange={(e) => setCorreoInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && validar()}
           />
           <label>Contraseña</label>
