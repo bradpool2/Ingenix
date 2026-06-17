@@ -29,12 +29,28 @@ createRoot(document.getElementById('root')).render(
         
         <Route path="/relojes" element={<Relojs />} />
         
+        {/* ================= PANEL DE SOLICITUDES Y SUS RUTAS HIJAS ================= */}
         <Route path="/panel_solicitud" element={<Panel_Solicitud />}>
+          
+          {/* 1. Rutas que ya tenías (puedes dejarlas para los usuarios/clientes) */}
           <Route path="mantenimiento" element={<Solicitud />} />
           <Route path="Entrega" element={<SolicitudEntrega/>} />
           <Route path="Venta" element={<div>Vista Solicitud Venta</div>} />
           <Route path="Almacenado" element={<div>Vista Solicitud Almacenado</div>} />
+
+          {/* 2. NUEVAS RUTAS PARA EL ADMINISTRADOR */}
+          <Route path="admin/mantenimiento" element={<div>Vista Mantenimiento de Admin</div>} />
+          <Route path="admin/Entrega" element={<div>Vista Entrega de Admin</div>} />
+          <Route path="admin/Almacenado" element={<div>Vista Almacenado de Admin</div>} />
+          <Route path="admin/Venta" element={<div>Vista Venta de Admin</div>} />
+
+          {/* 3. NUEVAS RUTAS PARA EL TÉCNICO */}
+          <Route path="tecnico/mantenimiento" element={<div>Vista Mantenimiento de Técnico</div>} />
+          <Route path="tecnico/Entrega" element={<div>Vista Entrega de Técnico</div>} />
+          <Route path="tecnico/Almacenado" element={<div>Vista Almacenado de Técnico</div>} />
+          
         </Route>
+        {/* ========================================================================== */}
 
         <Route path="/solicitud" element={<Navigate to="/panel_solicitud" replace />} />
         <Route path="/register" element={<Register />} />

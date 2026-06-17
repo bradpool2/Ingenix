@@ -8,10 +8,8 @@ const PanelSolicitudes = () => {
   const userString = localStorage.getItem('user');
   const usuarioLogueado = userString ? JSON.parse(userString) : null;
   const rol = usuarioLogueado?.rol || '';
-  const esAdminOTecnico = rol === 'admin' || rol === 'tecnico';
 
   const location = useLocation();
-
   const mostrarDashboard = location.pathname === '/panel_solicitud' || location.pathname === '/panel_solcitud/';
 
   return (
@@ -20,25 +18,52 @@ const PanelSolicitudes = () => {
       <nav className="sidebar">
         <h2>Panel de Gestión</h2>
         <ul>
-          <li>
-            <Link to="mantenimiento">Solicitud Mantenimiento</Link>
-          </li>
           
-          {esAdminOTecnico && (
-            <li>
-              <Link to="Entrega">Solicitud Entrega</Link>
-            </li>
+          {/* ================= VISTA EXCLUSIVA PARA ADMIN ================= */}
+          {rol === 'admin' && (
+            <>
+              <li>
+                <Link to="admin/mantenimiento">Solicitud Mantenimiento (Admin)</Link>
+              </li>
+              <li>
+                <Link to="admin/Entrega">Solicitud Entrega (Admin)</Link>
+              </li>
+              <li>
+                <Link to="admin/Almacenado">Solicitud Almacenado (Admin)</Link>
+              </li>
+              <li>
+                <Link to="admin/Venta">Solicitud Venta</Link>
+              </li>
+            </>
           )}
 
-          <li>
-            <Link to="Venta">Solicitud Venta</Link>
-          </li>
-
-          {esAdminOTecnico && (
-            <li>
-              <Link to="Almacenado">Solicitud Almacenado</Link>
-            </li>
+          {/* ================= VISTA EXCLUSIVA PARA TÉCNICO ================= */}
+          {rol === 'tecnico' && (
+            <>
+              <li>
+                <Link to="tecnico/mantenimiento">Mis Mantenimientos</Link>
+              </li>
+              <li>
+                <Link to="tecnico/Entrega">Mis Entregas</Link>
+              </li>
+              <li>
+                <Link to="tecnico/Almacenado">Inventario Almacenado</Link>
+              </li>
+            </>
           )}
+
+          {/* ================= VISTA PARA OTROS ROLES (CLIENTE/USUARIO) ================= */}
+          {rol !== 'admin' && rol !== 'tecnico' && (
+            <>
+              <li>
+                <Link to="mantenimiento">Crear Mantenimiento</Link>
+              </li>
+              <li>
+                <Link to="Venta">Solicitud Venta</Link>
+              </li>
+            </>
+          )}
+
         </ul>
       </nav>
 
