@@ -29,11 +29,9 @@ function Register() {
     }
 
     try {
-      // verificar correo
       const resCheck = await fetch(
-        `http://localhost:3000/usuario?correo=${datos.correo}`,
+        `http://localhost:3000/usuario?correo=${datos.correo}`
       );
-
       const dataCheck = await resCheck.json();
 
       if (dataCheck.length > 0) {
@@ -41,11 +39,9 @@ function Register() {
         return;
       }
 
-      // verificar documento
       const resDocumento = await fetch(
-        `http://localhost:3000/usuario?documento=${datos.documento}`,
+        `http://localhost:3000/usuario?documento=${datos.documento}`
       );
-
       const dataDocumento = await resDocumento.json();
 
       if (dataDocumento.length > 0) {
@@ -53,12 +49,7 @@ function Register() {
         return;
       }
 
-      // registrar usuario
-<<<<<<< HEAD
-      const res = await fetch("http://localhost:3000/usuario", {
-=======
       const res = await fetch("http://localhost:3000/usuarios", {
->>>>>>> e2fa39c (Correcion vistas roles & login/register)
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -69,11 +60,7 @@ function Register() {
           documento: datos.documento,
           telefono: datos.telefono,
           pass: datos.pass,
-
-          // FK de tipo documento
           TipoDocumento_idTipoDocumento: parseInt(datos.tipoDocumento),
-
-          // rol usuario normal
           rol_idRol: 3,
         }),
       });

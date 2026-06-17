@@ -14,21 +14,19 @@ import RutaProtegida from './components/RutaProtegida'
 import Perfil from './Paginas/Perfil'
 import Catalogo from './Paginas/Catalogo'
 
-
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home_invited />} /> 
-        <Route path="/Login" element={<Login />} /> 
-        
+        <Route path="/" element={<Home_invited />} />
+        <Route path="/login" element={<Login />} />
+
         <Route path="/home" element={
           <RutaProtegida>
             <Home />
           </RutaProtegida>
         } />
-        
-        
+
         <Route path="/panel_solicitud" element={<Panel_Solicitud />}>
           <Route path="mantenimiento" element={<Solicitud />} />
           <Route path="Entrega" element={<div>Vista Solicitud Entrega</div>} />
@@ -39,9 +37,9 @@ createRoot(document.getElementById('root')).render(
         <Route path="/solicitud" element={<Navigate to="/panel_solicitud" replace />} />
         <Route path="/register" element={<Register />} />
         <Route path="/usuarios" element={<Usuarios />} />
-        <Route path="/Perfil" element={<Perfil />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/perfil" element={<Perfil />} />
         <Route path="/catalogo" element={<Catalogo />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

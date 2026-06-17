@@ -5,7 +5,7 @@ function Perfil() {
   const userGuardado = JSON.parse(localStorage.getItem('user'));
   const [editando, setEditando] = useState(false);
   const [datos, setDatos] = useState({
-    user: userGuardado?.user || '',
+    nombre: userGuardado?.nombre || '',
     correo: userGuardado?.correo || '',
     telefono: userGuardado?.telefono || '',
     rol: userGuardado?.rol || ''
@@ -27,15 +27,22 @@ function Perfil() {
 
   const guardar = async () => {
     try {
-      const res = await fetch(`http://localhost:3001/usuarios/${userGuardado.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`http://localhost:3000/usuarios/${userGuardado.idUsuario}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(datos)
+        body: JSON.stringify({
+          nombre: datos.nombre,
+          correo: datos.correo,
+          telefono: datos.telefono,
+          documento: userGuardado.documento,
+          direccion: userGuardado.direccion,
+          rol_idRol: userGuardado.rol_idRol
+        })
       });
 
       if (res.ok) {
-        const actualizado = await res.json();
-        localStorage.setItem('user', JSON.stringify({ ...userGuardado, ...actualizado }));
+        const nuevoUser = { ...userGuardado, ...datos };
+        localStorage.setItem('user', JSON.stringify(nuevoUser));
         alert("Datos actualizados correctamente");
         setEditando(false);
       } else {
@@ -56,8 +63,8 @@ function Perfil() {
           <div className="dato-grupo">
             <label>Nombre</label>
             {editando
-              ? <input name="user" value={datos.user} onChange={manejarCambio} />
-              : <span>{datos.user}</span>}
+              ? <input name="nombre" value={datos.nombre} onChange={manejarCambio} />
+              : <span>{datos.nombre || 'No registrado'}</span>}
           </div>
 
           <div className="dato-grupo">

@@ -20,9 +20,9 @@ app.get('/', (req, res) => {
 });
 
 app.post('/login', (req, res) => {
-    const { nombre, pass } = req.body;
+    const { correo, pass } = req.body;
 
-    if (!nombre || !pass) {
+    if (!correo || !pass) {
         return res.status(400).json({ message: 'Faltan datos' });
     }
 
@@ -30,8 +30,8 @@ app.post('/login', (req, res) => {
         `SELECT u.*, r.nombreRol AS rol
          FROM usuario u
          JOIN rol r ON u.rol_idRol = r.idRol
-         WHERE u.nombre = ? AND u.pass = ?`,
-        [nombre, pass],
+         WHERE u.correo = ? AND u.pass = ?`,
+        [correo, pass],
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             if (results.length === 0)
@@ -45,7 +45,6 @@ app.post('/login', (req, res) => {
                 { expiresIn: '2h' }
             );
 
-            // ✅ Solo devolvemos los campos necesarios, incluyendo rol del JOIN
             res.json({
                 mensaje: 'Login exitoso',
                 token,
@@ -61,11 +60,8 @@ app.post('/login', (req, res) => {
     );
 });
 
-<<<<<<< HEAD
-=======
 app.get('/usuario', (req, res) => {
     const { correo, documento } = req.query;
-    
 
     if (!correo && !documento) {
         return res.status(400).json({ message: 'Se requiere el parámetro correo o documento para validar.' });
@@ -87,11 +83,10 @@ app.get('/usuario', (req, res) => {
             console.error('❌ Error en GET /usuario:', err.message);
             return res.status(500).json({ error: err.message });
         }
-        res.json(results); 
+        res.json(results);
     });
 });
 
->>>>>>> e2fa39c (Correcion vistas roles & login/register)
 app.get('/usuarios', (req, res) => {
     conexion.query(
         `SELECT u.idUsuario, u.nombre, u.correo, u.documento, u.direccion, u.rol_idRol, r.nombreRol AS rol 
@@ -105,18 +100,18 @@ app.get('/usuarios', (req, res) => {
 });
 
 app.post('/usuarios', (req, res) => {
-    const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
+    const { nombre, correo, documento, direccion, telefono, pass, rol_idRol, TipoDocumento_idTipoDocumento } = req.body;
 
     if (!nombre || !correo || !documento || !pass) {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
     conexion.query(
-        'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?)',
-        [nombre, correo, documento, direccion, pass, rol_idRol || 1],
+        'INSERT INTO usuario (nombre, correo, documento, telefono, direccion, pass, rol_idRol, TipoDocumento_idTipoDocumento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [nombre, correo, documento, telefono, direccion, pass, rol_idRol || 3, TipoDocumento_idTipoDocumento],
         (err, results) => {
             if (err) {
-                docConsole.error('❌ Error POST /usuarios:', err);
+                console.error('❌ Error POST /usuarios:', err);
                 return res.status(500).json({ error: err.message });
             }
             res.status(201).json({ message: 'Usuario creado', idUsuario: results.insertId });
