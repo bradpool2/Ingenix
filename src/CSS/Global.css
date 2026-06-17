@@ -333,3 +333,185 @@ button {
   margin-top: 25px;
   /* El resto de estilos ya los hereda de tu CSS global de botones */
 }
+
+/*----------------------------------Css de carrito plegable----------------------------------*/
+.carrito-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.btn-carrito {
+  background: transparent;
+  border: none;
+  color: #111;
+  font-size: 22px;
+  cursor: pointer;
+  position: relative;
+  padding: 8px;
+}
+
+.btn-carrito:hover {
+  transform: scale(1.08);
+}
+
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #111;
+  color: white;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dropdown-carrito {
+  position: absolute;
+  top: 55px;
+  right: 0;
+
+  width: 360px;
+
+  background: rgba(255,255,255,0.95);
+
+  backdrop-filter: blur(10px);
+
+  border-radius: 16px;
+
+  box-shadow:
+  0 20px 50px rgba(0,0,0,0.25);
+
+  padding: 20px;
+
+  z-index: 999;
+}
+
+.dropdown-carrito h3 {
+  text-align: center;
+  margin-bottom: 15px;
+  color: #111;
+}
+
+.item-carrito {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 12px 0;
+
+  border-bottom: 1px solid #eee;
+}
+
+.item-carrito p {
+  margin: 4px 0;
+  color: #666;
+}
+
+.total-carrito {
+  margin-top: 15px;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: right;
+}
+
+.btn-ver-carrito {
+  width: 100%;
+  margin-top: 15px;
+  background: #111;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.btn-ver-carrito:hover {
+  background: #333;
+}
+
+/*----------------------------------Css de carrito de compra----------------------------------*/
+.contenedor-carrito {
+  margin-top: 120px;
+  display: flex;
+  justify-content: center;
+}
+
+.carrito-card {
+  background: white;
+  width: 900px;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+
+.producto-carrito {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 20px 0;
+
+  border-bottom: 1px solid #ddd;
+}
+
+.acciones-carrito {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.cantidad-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cantidad-control button {
+  width: 35px;
+  height: 35px;
+  margin: 0;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #111;
+  color: white;
+
+  cursor: pointer;
+}
+
+.cantidad-control span {
+  min-width: 25px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.btn-eliminar {
+  width: 35px;
+  height: 35px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: #d32f2f;
+  color: white;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-eliminar:hover {
+  background: #b71c1c;
+}
+
+.total-final {
+  margin-top: 25px;
+  text-align: right;
+}

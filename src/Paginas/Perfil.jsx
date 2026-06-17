@@ -5,17 +5,19 @@ function Perfil() {
   const userGuardado = JSON.parse(localStorage.getItem('user'));
   const [editando, setEditando] = useState(false);
   const [datos, setDatos] = useState({
-    nombre: userGuardado?.nombre || '',
-    correo: userGuardado?.correo || '',
-    telefono: userGuardado?.telefono || '',
-    rol: userGuardado?.rol || ''
+    nombre:    userGuardado?.nombre    || '',
+    correo:    userGuardado?.correo    || '',
+    telefono:  userGuardado?.telefono  || '',
+    direccion: userGuardado?.direccion || '',
+    documento: userGuardado?.documento || '',
+    rol:       userGuardado?.rol       || ''
   });
 
   if (!userGuardado) {
     return (
       <div className="contenedor-padre">
         <div className="tarjeta-login">
-          <h2 className="titulo-perfil">No hay sesión activa</h2>
+          <h2>No hay sesión activa</h2>
         </div>
       </div>
     );
@@ -31,12 +33,12 @@ function Perfil() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre: datos.nombre,
-          correo: datos.correo,
-          telefono: datos.telefono,
-          documento: userGuardado.documento,
-          direccion: userGuardado.direccion,
-          rol_idRol: userGuardado.rol_idRol
+          nombre:    datos.nombre,
+          correo:    datos.correo,
+          telefono:  datos.telefono,
+          direccion: datos.direccion,
+          documento: datos.documento,
+          rol_idRol: userGuardado.rol_idRol || 3
         })
       });
 
@@ -54,32 +56,26 @@ function Perfil() {
     }
   };
 
+  const campo = (label, name, tipo = 'text') => (
+    <div className="dato-grupo">
+      <label>{label}</label>
+      {editando
+        ? <input type={tipo} name={name} value={datos[name]} onChange={manejarCambio} />
+        : <span>{datos[name] || 'No registrado'}</span>}
+    </div>
+  );
+
   return (
     <div className="contenedor-padre">
       <div className="tarjeta-login">
         <h2 className="titulo-perfil">Mi Perfil</h2>
 
         <div className="perfil-datos">
-          <div className="dato-grupo">
-            <label>Nombre</label>
-            {editando
-              ? <input name="nombre" value={datos.nombre} onChange={manejarCambio} />
-              : <span>{datos.nombre || 'No registrado'}</span>}
-          </div>
-
-          <div className="dato-grupo">
-            <label>Correo</label>
-            {editando
-              ? <input name="correo" value={datos.correo} onChange={manejarCambio} />
-              : <span>{datos.correo || 'No registrado'}</span>}
-          </div>
-
-          <div className="dato-grupo">
-            <label>Teléfono</label>
-            {editando
-              ? <input name="telefono" value={datos.telefono} onChange={manejarCambio} />
-              : <span>{datos.telefono || 'No registrado'}</span>}
-          </div>
+          {campo('Nombre',    'nombre')}
+          {campo('Correo',    'correo',   'email')}
+          {campo('Teléfono',  'telefono')}
+          {campo('Dirección', 'direccion')}
+          {campo('Documento', 'documento')}
 
           <div className="dato-grupo">
             <label>Rol asignado</label>

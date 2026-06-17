@@ -121,11 +121,11 @@ app.post('/usuarios', (req, res) => {
 
 app.put('/usuarios/:id', (req, res) => {
     const { id } = req.params;
-    const { nombre, correo, documento, direccion, rol_idRol } = req.body;
+    const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
 
     conexion.query(
-        'UPDATE usuario SET nombre = ?, correo = ?, documento = ?, direccion = ?, rol_idRol = ? WHERE idUsuario = ?',
-        [nombre, correo, documento, direccion, rol_idRol, id],
+        'UPDATE usuario SET nombre = ?, correo = ?, documento = ?, direccion = ?, telefono = ?, rol_idRol = ? WHERE idUsuario = ?',
+        [nombre, correo, documento, direccion, telefono, rol_idRol, id],
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Usuario actualizado con éxito' });

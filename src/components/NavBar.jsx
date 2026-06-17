@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import '../CSS/NavBar.css';
 import logo from '../assets/Logo_reloj.png';
+import Carrito_plegable from "../Paginas/Carrito_plegable";
 
 function NavBar() {
   const navigate = useNavigate();
@@ -53,6 +54,8 @@ function NavBar() {
                 <Link to="/mis-solicitudes">Mis Solicitudes</Link>
                 <Link to="/catalogo">Catálogo</Link>
                 <Link to="/perfil">Perfil</Link>
+
+                <Carrito_plegable />
               </>
             )}
           </>
