@@ -15,10 +15,12 @@ app.use(express.json());
 
 app.use(rutasSolicitudes);
 
+// ─── Test ──────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
     res.send('🟢 API funcionando correctamente');
 });
 
+// ─── Login ─────────────────────────────────────────────────────────────────────
 app.post('/login', (req, res) => {
     const { correo, pass } = req.body;
 
@@ -30,7 +32,7 @@ app.post('/login', (req, res) => {
         `SELECT u.*, r.nombreRol AS rol
          FROM usuario u
          JOIN rol r ON u.rol_idRol = r.idRol
-         WHERE u.correo = ? AND u.pass = ?`,
+         WHERE u.correo = ? AND u.pass = SHA2(?, 256)`,
         [correo, pass],
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
@@ -53,6 +55,8 @@ app.post('/login', (req, res) => {
                     nombre: usuario.nombre,
                     correo: usuario.correo,
                     telefono: usuario.telefono,
+                    direccion: usuario.direccion,
+                    documento: usuario.documento,
                     rol: usuario.rol
                 }
             });
@@ -60,6 +64,7 @@ app.post('/login', (req, res) => {
     );
 });
 
+// ─── Buscar usuario (para validar en register) ─────────────────────────────────
 app.get('/usuario', (req, res) => {
     const { correo, documento } = req.query;
 
@@ -87,9 +92,10 @@ app.get('/usuario', (req, res) => {
     });
 });
 
+// ─── Listar usuarios ───────────────────────────────────────────────────────────
 app.get('/usuarios', (req, res) => {
     conexion.query(
-        `SELECT u.idUsuario, u.nombre, u.correo, u.documento, u.direccion, u.rol_idRol, r.nombreRol AS rol 
+        `SELECT u.idUsuario, u.nombre, u.correo, u.documento, u.direccion, u.telefono, u.rol_idRol, r.nombreRol AS rol 
          FROM usuario u 
          LEFT JOIN rol r ON u.rol_idRol = r.idRol`,
         (err, results) => {
@@ -99,6 +105,7 @@ app.get('/usuarios', (req, res) => {
     );
 });
 
+// ─── Crear usuario ─────────────────────────────────────────────────────────────
 app.post('/usuarios', (req, res) => {
     const { nombre, correo, documento, direccion, telefono, pass, rol_idRol, TipoDocumento_idTipoDocumento } = req.body;
 
@@ -106,19 +113,40 @@ app.post('/usuarios', (req, res) => {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
+    const rolFinal = rol_idRol || 3;
+
+    // 1. Insertar usuario con SHA2
     conexion.query(
-        'INSERT INTO usuario (nombre, correo, documento, telefono, direccion, pass, rol_idRol, TipoDocumento_idTipoDocumento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [nombre, correo, documento, telefono, direccion, pass, rol_idRol || 3, TipoDocumento_idTipoDocumento],
+        'INSERT INTO usuario (nombre, correo, documento, telefono, direccion, pass, rol_idRol, TipoDocumento_idTipoDocumento) VALUES (?, ?, ?, ?, ?, SHA2(?, 256), ?, ?)',
+        [nombre, correo, documento, telefono, direccion, pass, rolFinal, TipoDocumento_idTipoDocumento],
         (err, results) => {
             if (err) {
                 console.error('❌ Error POST /usuarios:', err);
                 return res.status(500).json({ error: err.message });
             }
-            res.status(201).json({ message: 'Usuario creado', idUsuario: results.insertId });
+
+            const idUsuario = results.insertId;
+
+            // 2. Si el rol es usuario (3), insertar también en cliente
+            if (rolFinal === 3 || rolFinal === '3') {
+                conexion.query(
+                    'INSERT INTO cliente (usuario_idUsuario) VALUES (?)',
+                    [idUsuario],
+                    (err2) => {
+                        if (err2) {
+                            console.error('❌ Error INSERT cliente:', err2);
+                            // No bloqueamos, el usuario ya fue creado
+                        }
+                    }
+                );
+            }
+
+            res.status(201).json({ message: 'Usuario creado', idUsuario });
         }
     );
 });
 
+// ─── Actualizar usuario ────────────────────────────────────────────────────────
 app.put('/usuarios/:id', (req, res) => {
     const { id } = req.params;
     const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
@@ -133,6 +161,7 @@ app.put('/usuarios/:id', (req, res) => {
     );
 });
 
+// ─── Eliminar usuario ──────────────────────────────────────────────────────────
 app.delete('/usuarios/:id', (req, res) => {
     const { id } = req.params;
 
@@ -142,6 +171,7 @@ app.delete('/usuarios/:id', (req, res) => {
     });
 });
 
+// ─── Listar productos ──────────────────────────────────────────────────────────
 app.get('/productos', (req, res) => {
     conexion.query('SELECT * FROM producto', (err, results) => {
         if (err) {
@@ -152,6 +182,7 @@ app.get('/productos', (req, res) => {
     });
 });
 
+// ─── Crear producto ────────────────────────────────────────────────────────────
 app.post('/productos', (req, res) => {
     const { nombre, descripcion, precio, stock } = req.body;
 
@@ -172,6 +203,7 @@ app.post('/productos', (req, res) => {
     );
 });
 
+// ─── Actualizar producto ───────────────────────────────────────────────────────
 app.put('/productos/:id', (req, res) => {
     const { id } = req.params;
     const { nombre, descripcion, precio, stock } = req.body;
@@ -189,6 +221,7 @@ app.put('/productos/:id', (req, res) => {
     );
 });
 
+// ─── Eliminar producto ─────────────────────────────────────────────────────────
 app.delete('/productos/:id', (req, res) => {
     const { id } = req.params;
 
@@ -201,6 +234,95 @@ app.delete('/productos/:id', (req, res) => {
     });
 });
 
+// ─── Crear venta + pago (pasarela simulada) ────────────────────────────────────
+app.post('/venta', (req, res) => {
+    const { idUsuario, total, metodoPago, detallePago, productos } = req.body;
+
+    if (!idUsuario || !total || !productos || productos.length === 0) {
+        return res.status(400).json({ message: 'Faltan datos para registrar la venta' });
+    }
+
+    // 1. Insertar la venta
+    conexion.query(
+        "INSERT INTO Venta (Fecha, Estado, total, idUsuario) VALUES (CURDATE(), 'pagado', ?, ?)",
+        [total, idUsuario],
+        (err, resultVenta) => {
+            if (err) {
+                console.error('❌ Error POST /venta:', err);
+                return res.status(500).json({ error: err.message });
+            }
+
+            const idVenta = resultVenta.insertId;
+
+            // 2. Insertar productos en VentaDetalle
+            const valores = productos.map(p => [
+                p.cantidad,
+                p.precioUnitario,
+                p.cantidad * p.precioUnitario, // subtotal
+                idVenta,
+                p.idProducto
+            ]);
+
+            conexion.query(
+                'INSERT INTO VentaDetalle (cantidad, precioUnitario, subtotal, Venta_idVenta, producto_idProducto) VALUES ?',
+                [valores],
+                (err2) => {
+                    if (err2) {
+                        console.error('❌ Error insertando VentaDetalle:', err2);
+                        return res.status(500).json({ error: err2.message });
+                    }
+
+                    // 3. Insertar en tabla pago
+                    const referencia = 'PAY-' + Date.now();
+                    conexion.query(
+                        'INSERT INTO pago (Venta_idVenta, metodoPago, referenciaPago, detallePago, estadoPago) VALUES (?, ?, ?, ?, ?)',
+                        [idVenta, metodoPago, referencia, detallePago || null, 'aprobado'],
+                        (err3) => {
+                            if (err3) {
+                                console.error('❌ Error insertando pago:', err3);
+                                return res.status(500).json({ error: err3.message });
+                            }
+
+                            res.status(201).json({
+                                message: 'Venta y pago registrados correctamente',
+                                idVenta,
+                                referencia
+                            });
+                        }
+                    );
+                }
+            );
+        }
+    );
+});
+
+// ─── Historial de ventas de un usuario ────────────────────────────────────────
+app.get('/ventas/:idUsuario', (req, res) => {
+    const { idUsuario } = req.params;
+
+    conexion.query(
+        `SELECT v.idVenta, v.Fecha, v.total, v.Estado,
+                vd.cantidad, vd.precioUnitario, vd.subtotal,
+                p.nombre AS producto,
+                pg.metodoPago, pg.referenciaPago, pg.estadoPago
+         FROM Venta v
+         JOIN VentaDetalle vd ON v.idVenta = vd.Venta_idVenta
+         JOIN producto p ON vd.producto_idProducto = p.idProducto
+         LEFT JOIN pago pg ON v.idVenta = pg.Venta_idVenta
+         WHERE v.idUsuario = ?
+         ORDER BY v.Fecha DESC`,
+        [idUsuario],
+        (err, results) => {
+            if (err) {
+                console.error('❌ Error GET /ventas:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json(results);
+        }
+    );
+});
+
+// ─── Iniciar servidor ──────────────────────────────────────────────────────────
 app.listen(PUERTO, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
 });

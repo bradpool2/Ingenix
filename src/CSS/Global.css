@@ -422,7 +422,7 @@ button {
 .btn-ver-carrito {
   width: 100%;
   margin-top: 15px;
-  background: #111;
+  background: #919191;
   color: white;
   border: none;
   padding: 12px;
@@ -515,3 +515,205 @@ button {
   margin-top: 25px;
   text-align: right;
 }
+
+/* Carrito desplegable */
+.dropdown-carrito,
+.dropdown-carrito * {
+  color: #111 !important;
+}
+
+.dropdown-carrito p {
+  color: #555 !important;
+}
+
+.dropdown-carrito span {
+  color: #111 !important;
+}
+
+/* Carrito de compras */
+.carrito-card {
+  color: #111;
+}
+
+.carrito-card h2,
+.carrito-card h3,
+.carrito-card h4,
+.carrito-card p,
+.carrito-card span {
+  color: #111;
+}
+
+/*----------------------------------Css de pago----------------------------------*/
+.tarjeta-pago {
+  width: 500px;
+  max-width: 95vw;
+}
+
+.titulo-pago {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.lista-productos-pago {
+  margin-bottom: 20px;
+}
+
+.item-pago {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.subtexto-pago {
+  margin: 0;
+  font-size: 13px;
+  color: #777;
+}
+
+.precio-pago {
+  font-weight: bold;
+}
+
+.fila-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 20px;
+  padding-top: 10px;
+  border-top: 2px solid #111;
+}
+
+.lista-metodos {
+  margin-bottom: 20px;
+}
+
+.metodo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.metodo-activo {
+  border: 2px solid black;
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+.radio-circulo {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid black;
+  background: white;
+  flex-shrink: 0;
+}
+
+.radio-activo {
+  background: black;
+}
+
+.resumen-total {
+  background: #f9f9f9;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.btn-pago-principal {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.btn-pago-secundario {
+  width: 100%;
+  background: white;
+  color: black;
+  border: 1px solid black;
+}
+
+.btn-pago-secundario:hover {
+  background: #f0f0f0;
+}
+
+.confirmacion-pago {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.icono-exito {
+  font-size: 60px;
+  margin-bottom: 16px;
+}
+
+.tarjeta-pago h2,
+.tarjeta-pago h3,
+.tarjeta-pago h4,
+.tarjeta-pago p,
+.tarjeta-pago span,
+.tarjeta-pago strong {
+  color: #111;
+}
+
+/*----------------------------------Css de pago----------------------------------*/
+.campo-detalle-pago {
+  margin-bottom: 16px;
+}
+
+.label-detalle {
+  display: block;
+  font-size: 13px;
+  font-weight: bold;
+  color: #444;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.input-detalle {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: 0.2s;
+  box-sizing: border-box;
+}
+
+.input-detalle:focus {
+  border-color: black;
+}
+
+.input-error {
+  border-color: #d32f2f;
+}
+
+.error-detalle {
+  color: #d32f2f;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+.metodo-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-metodo {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+/*----------------------------------Css de pago2----------------------------------*/

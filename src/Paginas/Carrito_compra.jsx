@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import NavBar from "../components/NavBar";
+import { useNavigate } from 'react-router-dom'; 
 
 function Carrito_compra() {
+    const navigate = useNavigate();
   const [carrito, setCarrito] = useState([]);
 
   useEffect(() => {
@@ -140,6 +142,8 @@ function Carrito_compra() {
                 Total: $
                 {total.toLocaleString()}
               </h3>
+
+              <button onClick={() => navigate('/pago')}>Proceder al pago</button>
             </>
           )}
         </div>

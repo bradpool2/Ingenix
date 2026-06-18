@@ -14,6 +14,7 @@ import RutaProtegida from "./components/RutaProtegida";
 import Perfil from "./Paginas/Perfil";
 import Catalogo from "./Paginas/Catalogo";
 import Carrito_compra from "./Paginas/Carrito_compra";
+import Pago from './Paginas/Pago'
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
@@ -51,6 +52,7 @@ createRoot(document.getElementById("root")).render(
         <Route path="/catalogo" element={<Catalogo />} />
         <Route path="*" element={<Navigate to="/" replace />} />
         <Route path="/carrito" element={<Carrito_compra />} />
+        <Route path="/pago" element={<Pago />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
