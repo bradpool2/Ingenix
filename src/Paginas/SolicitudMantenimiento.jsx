@@ -14,6 +14,8 @@ export default function SolicitudMantenimiento() {
   const [servicios, setServicios] = useState([]);
   const [piezas, setPiezas] = useState({});
   const [verResumen, setVerResumen] = useState(false);
+  const [vistaResumen, setVistaResumen] = useState('general'); 
+  const [piezaEditando, setPiezaEditando] = useState(null);
 
   const danosData = {
     reloj: [
@@ -100,10 +102,11 @@ export default function SolicitudMantenimiento() {
       subtipo,
       danos,
       services: servicios,
+      piezas: piezas,
       total: totalEstimado,
       fecha: new Date().toLocaleDateString('es-CO')
     };
-  
+ 
     try {
       const res = await fetch('http://localhost:3000/solicitudes', {
         method: 'POST',
@@ -111,13 +114,13 @@ export default function SolicitudMantenimiento() {
         body: JSON.stringify(nuevaSolicitud)
       });
       if (res.ok) {
-        alert('Solicitud guardada correctamente');
+        alert('✅ Solicitud guardada con éxito');
         navigate('/panel_solicitud');
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error al guardar:", err);
     }
-  };
+};
 
   const formularioCompleto = () => {
     return orden.trim() !== '' && tipo !== '' && subtipo !== '' && danos.length > 0 && servicios.length > 0;
@@ -201,15 +204,33 @@ export default function SolicitudMantenimiento() {
         }
 
         <p className="seccion-label">Piezas</p>
-        {Object.keys(piezas).length === 0
-          ? <p className="resumen-vacio">Ninguna seleccionada</p>
-          : Object.keys(piezas).map(k => (
-              <div key={k} className="resumen-fila">
-                <span>{k}</span>
-                <span>${(piezas[k] || 0).toLocaleString('es-CO')}</span>
-              </div>
-            ))
-        }
+        {vistaResumen === 'general' ? (
+          Object.keys(piezas).length === 0
+            ? <p className="resumen-vacio">Ninguna seleccionada</p>
+            : Object.keys(piezas).map(k => (
+                <div key={k} className="resumen-fila" style={{ cursor: 'pointer' }} onClick={() => {
+                    setPiezaEditando(k);
+                    setVistaResumen('detallePieza');
+                }}>
+                  <span>{k}</span>
+                  <span>${(piezas[k] || 0).toLocaleString('es-CO')}</span>
+                </div>
+              ))
+        ) : (
+          <div className="panel-detalle-interno">
+            <button onClick={() => setVistaResumen('general')}>← Volver al resumen</button>
+            <p className="seccion-label" style={{marginTop: '15px'}}>Editando: {piezaEditando}</p>
+            <input
+              type="number"
+              className="formulario-campo"
+              value={piezas[piezaEditando] || ''}
+              onChange={(e) => setPrecioPieza(piezaEditando, e.target.value)}
+            />
+            <button className="btn-siguiente" style={{ marginTop: '10px', width: '100%' }} onClick={() => setVistaResumen('general')}>
+              Confirmar
+            </button>
+          </div>
+        )}
 
         <div className="resumen-total">
           <span>Total estimado</span>

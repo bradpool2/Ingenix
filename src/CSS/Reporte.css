@@ -1,0 +1,64 @@
+.perfil-container {
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+  background: #ffffff;
+  background-color: rgba(3, 3, 3, 0.8);
+  border-radius: 80px;
+}
+
+/* Formulario */
+.formulario-reporte {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 30px;
+  border: 2px solid #ffffff;
+  border-radius: 16px;
+  max-width: 600px;
+  margin: 0 auto 40px auto;
+}
+
+.formulario-reporte input, 
+.formulario-reporte textarea,
+.formulario-reporte select {
+  padding: 16px;
+  border: 1px solid #020202;
+  border-radius: 10px;
+  font-size: 16px;
+  background: white; /* Fondo blanco para inputs */
+  color: #000;
+}
+
+.formulario-reporte button {
+  background-color: #474953;
+  color: #ffffff; /* CAMBIADO: Texto blanco para que se lea */
+  padding: 16px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* Tabla */
+.tabla-reporte {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 30px;
+  background: #f8f9fa; /* CAMBIADO: Fondo claro para que el texto se vea */
+  border: 1px solid #dee2e6;
+}
+
+.tabla-reporte th, .tabla-reporte td {
+  padding: 20px;
+  text-align: left;
+  border-bottom: 1px solid #dee2e6;
+  color: #333; /* CAMBIADO: Color de texto oscuro para contraste */
+}
+
+.tabla-reporte th {
+  background-color: #e9ecef;
+  font-weight: 600;
+  color: #000;
+}

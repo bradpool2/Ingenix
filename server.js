@@ -244,6 +244,36 @@ app.get('/api/dashboard/ultimas-solicitudes', (req, res) => {
         res.json(results);
     });
 });
+// 1. Obtener reportes
+app.get('/reporte-piezas-perdidas', (req, res) => {
+    const query = 'SELECT * FROM reporte_piezas_perdidas ORDER BY id DESC';
+    db.query(query, (err, results) => {
+        if (err) {
+            console.error("Error al obtener reportes:", err);
+            return res.status(500).json({ error: "Error interno del servidor" });
+        }
+        res.json(results);
+    });
+});
+
+// 2. Insertar reporte
+app.post('/reporte-piezas-perdidas', (req, res) => {
+    const { orden, pieza, motivo } = req.body;
+    
+    // VERIFICACIÓN: ¿Llegan los datos aquí?
+    console.log("Recibido en server:", orden, pieza, motivo);
+
+    const query = 'INSERT INTO reporte_piezas_perdidas (orden, pieza, motivo) VALUES (?, ?, ?)';
+    
+    db.query(query, [orden, pieza, motivo], (err, result) => {
+        if (err) {
+            // AQUÍ VERÁS EL ERROR REAL DE SQL
+            console.error("ERROR SQL DETALLADO:", err); 
+            return res.status(500).json({ error: err.message });
+        }
+        res.status(201).json({ message: 'Guardado' });
+    });
+});
 
 app.get('/api/tecnico/solicitudes', (req, res) => {
     const sql = `
@@ -268,6 +298,7 @@ app.put('/api/tecnico/solicitudes/:id/estado', (req, res) => {
         res.json({ message: `Solicitud #${id} actualizada a ${nuevoEstado} con éxito` });
     });
 });
+
 
 app.listen(PUERTO, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
