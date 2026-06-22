@@ -354,7 +354,7 @@ app.put('/productos/:id/categorias', (req, res) => {
 });
 
 // Productos con sus categorías incluidas (para mostrar en el listado)
-app.get('/productos/con-categorias', (req, res) => {
+app.get('/productos/co  n-categorias', (req, res) => {
     conexion.query(
         `SELECT p.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') AS categorias
          FROM producto p
@@ -363,6 +363,93 @@ app.get('/productos/con-categorias', (req, res) => {
          GROUP BY p.idProducto`,
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
+});
+
+app.post('/venta', (req, res) => {
+    const { idUsuario, total, metodoPago, detallePago, productos } = req.body;
+
+    if (!idUsuario || !total || !productos || productos.length === 0) {
+        return res.status(400).json({ message: 'Faltan datos para registrar la venta' });
+    }
+
+    // 1. Insertar la venta
+    conexion.query(
+        "INSERT INTO Venta (Fecha, Estado, total, idUsuario) VALUES (CURDATE(), 'pagado', ?, ?)",
+        [total, idUsuario],
+        (err, resultVenta) => {
+            if (err) {
+                console.error('❌ Error POST /venta:', err);
+                return res.status(500).json({ error: err.message });
+            }
+
+            const idVenta = resultVenta.insertId;
+
+            // 2. Insertar productos en VentaDetalle
+            const valores = productos.map(p => [
+                p.cantidad,
+                p.precioUnitario,
+                p.cantidad * p.precioUnitario, // subtotal
+                idVenta,
+                p.idProducto
+            ]);
+
+            conexion.query(
+                'INSERT INTO VentaDetalle (cantidad, precioUnitario, subtotal, Venta_idVenta, producto_idProducto) VALUES ?',
+                [valores],
+                (err2) => {
+                    if (err2) {
+                        console.error('❌ Error insertando VentaDetalle:', err2);
+                        return res.status(500).json({ error: err2.message });
+                    }
+
+                    // 3. Insertar en tabla pago
+                    const referencia = 'PAY-' + Date.now();
+                    conexion.query(
+                        'INSERT INTO pago (Venta_idVenta, metodoPago, referenciaPago, detallePago, estadoPago) VALUES (?, ?, ?, ?, ?)',
+                        [idVenta, metodoPago, referencia, detallePago || null, 'aprobado'],
+                        (err3) => {
+                            if (err3) {
+                                console.error('❌ Error insertando pago:', err3);
+                                return res.status(500).json({ error: err3.message });
+                            }
+
+                            res.status(201).json({
+                                message: 'Venta y pago registrados correctamente',
+                                idVenta,
+                                referencia
+                            });
+                        }
+                    );
+                }
+            );
+        }
+    );
+});
+
+// ─── Historial de ventas de un usuario ────────────────────────────────────────
+app.get('/ventas/:idUsuario', (req, res) => {
+    const { idUsuario } = req.params;
+
+    conexion.query(
+        `SELECT v.idVenta, v.Fecha, v.total, v.Estado,
+                vd.cantidad, vd.precioUnitario, vd.subtotal,
+                p.nombre AS producto,
+                pg.metodoPago, pg.referenciaPago, pg.estadoPago
+         FROM Venta v
+         JOIN VentaDetalle vd ON v.idVenta = vd.Venta_idVenta
+         JOIN producto p ON vd.producto_idProducto = p.idProducto
+         LEFT JOIN pago pg ON v.idVenta = pg.Venta_idVenta
+         WHERE v.idUsuario = ?
+         ORDER BY v.Fecha DESC`,
+        [idUsuario],
+        (err, results) => {
+            if (err) {
+                console.error('❌ Error GET /ventas:', err);
+                return res.status(500).json({ error: err.message });
+            }
             res.json(results);
         }
     );
