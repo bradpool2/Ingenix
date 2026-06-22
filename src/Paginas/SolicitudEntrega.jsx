@@ -11,6 +11,12 @@ const COLORES_ESTADO = {
   'Cancelado': '#C62828',
 };
 
+const COLORES_URGENCIA = {
+  'Baja': '#888',
+  'Media': '#E6A817',
+  'Alta': '#C62828',
+};
+
 const SIGUIENTE_ESTADO_TECNICO = {
   'Pendiente': 'En proceso',
   'En proceso': 'Terminado',
@@ -35,10 +41,28 @@ export default function SolicitudEntrega() {
   const [errorBusqueda, setErrorBusqueda] = useState('');
   const [observacion, setObservacion] = useState('');
   const [modalDevolver, setModalDevolver] = useState(null);
+  const [tecnicos, setTecnicos] = useState([]);
+  const [modalAsignar, setModalAsignar] = useState(null);
+  const [tecnicoElegido, setTecnicoElegido] = useState('');
+  const [urgenciaElegida, setUrgenciaElegida] = useState('Media');
 
   useEffect(() => {
     cargarSolicitudes();
   }, []);
+  useEffect(() => {
+    cargarSolicitudes();
+    cargarTecnicos();
+  }, []);
+  
+  const cargarTecnicos = async () => {
+    try {
+      const res = await fetch('http://localhost:3000/usuarios/tecnicos');
+      const data = await res.json();
+      setTecnicos(data);
+    } catch (err) {
+      console.error('Error al cargar técnicos:', err);
+    }
+  };
 
   const cargarSolicitudes = async () => {
     try {
@@ -90,6 +114,27 @@ export default function SolicitudEntrega() {
       console.error('Error al cambiar estado:', err);
     }
   };
+  const asignarCaso = async () => {
+    if (!modalAsignar) return;
+    try {
+      const res = await fetch(`http://localhost:3000/solicitudes/${modalAsignar.idSolicitud}/asignar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tecnico_asignado: tecnicoElegido,
+          urgencia: urgenciaElegida
+        })
+      });
+      if (res.ok) {
+        await cargarSolicitudes();
+        setModalAsignar(null);
+        setTecnicoElegido('');
+        setUrgenciaElegida('Media');
+      }
+    } catch (err) {
+      console.error('Error al asignar caso:', err);
+    }
+  };
 
   const filtrosPorRol = () => {
     if (rol === 'admin') {
@@ -110,19 +155,25 @@ export default function SolicitudEntrega() {
         >
           {solicitud.estado}
         </span>
-      </div>
+      </div><div className="tarjeta-entrega-body">
+  <p>
+    <span className="label-campo">Urgencia:</span>{' '}
+    <span className="urgencia-badge" style={{ background: COLORES_URGENCIA[solicitud.urgencia] || '#888' }}>
+      {solicitud.urgencia || 'Media'}
+    </span>
+  </p>
+  <p><span className="label-campo">Técnico asignado:</span> {solicitud.tecnico_asignado || '—'}</p>
+  <p><span className="label-campo">Fecha:</span> {new Date(solicitud.fecha_registro).toLocaleDateString('es-CO')}</p>
+  <p><span className="label-campo">Servicios:</span> {solicitud.servicios || '—'}</p>
+  <p><span className="label-campo">Total:</span> ${solicitud.total_estimado?.toLocaleString('es-CO')} COP</p>
+  {solicitud.observacion_admin && (
+    <p className="observacion-admin">
+      <span className="label-campo">Observación admin:</span> {solicitud.observacion_admin}
+    </p>
+  )}
+</div>
 
-      <div className="tarjeta-entrega-body">
-        <p><span className="label-campo">Técnico asignado:</span> {solicitud.tecnico_asignado || '—'}</p>
-        <p><span className="label-campo">Fecha:</span> {new Date(solicitud.fecha_registro).toLocaleDateString('es-CO')}</p>
-        <p><span className="label-campo">Servicios:</span> {solicitud.servicios || '—'}</p>
-        <p><span className="label-campo">Total:</span> ${solicitud.total_estimado?.toLocaleString('es-CO')} COP</p>
-        {solicitud.observacion_admin && (
-          <p className="observacion-admin">
-            <span className="label-campo">Observación admin:</span> {solicitud.observacion_admin}
-          </p>
-        )}
-      </div>
+      
 
       <div className="tarjeta-entrega-footer">
 
@@ -156,6 +207,7 @@ export default function SolicitudEntrega() {
             {solicitud.estado === 'En revision' ? 'Aprobar' : 'Confirmar entrega'}
           </button>
         )}
+        
 
         {rol === 'admin' && solicitud.estado === 'En revision' && (
           <button
@@ -165,6 +217,18 @@ export default function SolicitudEntrega() {
             Devolver al técnico
           </button>
         )}
+        {rol === 'admin' && !['Entregado', 'Cancelado'].includes(solicitud.estado) && (
+  <button
+    className="btn-cambiar-estado"
+    onClick={() => {
+      setModalAsignar(solicitud);
+      setTecnicoElegido(solicitud.tecnico_asignado || '');
+      setUrgenciaElegida(solicitud.urgencia || 'Media');
+    }}
+  >
+    Asignar
+  </button>
+)}
 
         {rol === 'admin' && !['Entregado', 'Cancelado'].includes(solicitud.estado) && (
           <button
@@ -180,6 +244,53 @@ export default function SolicitudEntrega() {
 
   return (
     <div className="entrega-contenedor">
+      {modalAsignar && (
+  <div className="modal-overlay">
+    <div className="modal-caja">
+      <p className="formulario-titulo">Asignar caso</p>
+      <p className="formulario-subtitulo">Orden #{modalAsignar.idSolicitud}</p>
+
+      <label className="seccion-label">Técnico</label>
+      <select
+        className="formulario-campo"
+        value={tecnicoElegido}
+        onChange={(e) => setTecnicoElegido(e.target.value)}
+      >
+        <option value="">Selecciona un técnico</option>
+        {tecnicos.map(t => (
+          <option key={t.idUsuario} value={t.nombre}>{t.nombre}</option>
+        ))}
+      </select>
+
+      <label className="seccion-label">Urgencia</label>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+        {['Baja', 'Media', 'Alta'].map(u => (
+          <div
+            key={u}
+            className={`btn-subtipo ${urgenciaElegida === u ? 'sel' : ''}`}
+            onClick={() => setUrgenciaElegida(u)}
+            style={{ cursor: 'pointer' }}
+          >
+            {u}
+          </div>
+        ))}
+      </div>
+
+      <div className="modal-botones">
+        <button className="btn-atras" onClick={() => setModalAsignar(null)}>
+          Cancelar
+        </button>
+        <button
+          className="btn-cambiar-estado"
+          disabled={!tecnicoElegido}
+          onClick={asignarCaso}
+        >
+          Asignar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {modalDevolver && (
         <div className="modal-overlay">

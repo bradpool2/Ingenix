@@ -125,18 +125,29 @@ app.post('/usuarios', async (req, res) => {
 
 app.put('/usuarios/:id', (req, res) => {
     const { id } = req.params;
-    const { nombre, correo, documento, direccion, rol_idRol } = req.body;
+    const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
 
     conexion.query(
-        'UPDATE usuario SET nombre = ?, correo = ?, documento = ?, direccion = ?, rol_idRol = ? WHERE idUsuario = ?',
-        [nombre, correo, documento, direccion, rol_idRol, id],
+        'UPDATE usuario SET nombre = ?, correo = ?, documento = ?, direccion = ?, telefono = ?, rol_idRol = ? WHERE idUsuario = ?',
+        [nombre, correo, documento, direccion, telefono, rol_idRol, id],
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Usuario actualizado con éxito' });
         }
     );
 });
-
+app.get('/usuarios/tecnicos', (req, res) => {
+    conexion.query(
+        `SELECT u.idUsuario, u.nombre 
+         FROM usuario u 
+         JOIN rol r ON u.rol_idRol = r.idRol 
+         WHERE r.nombreRol = 'tecnico'`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
+});
 app.delete('/usuarios/:id', (req, res) => {
     const { id } = req.params;
 
@@ -196,12 +207,19 @@ app.put('/productos/:id', (req, res) => {
 app.delete('/productos/:id', (req, res) => {
     const { id } = req.params;
 
-    conexion.query('DELETE FROM producto WHERE idProducto = ?', [id], (err, results) => {
-        if (err) {
-            console.error('❌ Error en DELETE /productos:', err.message);
-            return res.status(500).json({ error: err.message });
+    conexion.query('DELETE FROM producto_y_solicitud WHERE producto_idProducto = ?', [id], (errRelacion) => {
+        if (errRelacion) {
+            console.error('❌ Error al borrar relaciones del producto:', errRelacion.message);
+            return res.status(500).json({ error: errRelacion.message });
         }
-        res.json({ message: 'Producto eliminado con éxito' });
+
+        conexion.query('DELETE FROM producto WHERE idProducto = ?', [id], (err, results) => {
+            if (err) {
+                console.error('❌ Error en DELETE /productos:', err.message);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ message: 'Producto eliminado con éxito junto a su historial de uso' });
+        });
     });
 });
 
@@ -267,6 +285,87 @@ app.put('/api/tecnico/solicitudes/:id/estado', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: `Solicitud #${id} actualizada a ${nuevoEstado} con éxito` });
     });
+});
+// ---------------- CATEGORÍAS ----------------
+
+app.get('/categorias', (req, res) => {
+    conexion.query('SELECT * FROM categoria ORDER BY nombre ASC', (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.post('/categorias', (req, res) => {
+    const { nombre } = req.body;
+    if (!nombre) return res.status(400).json({ message: 'El nombre es obligatorio' });
+
+    conexion.query('INSERT INTO categoria (nombre) VALUES (?)', [nombre], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(201).json({ idCategoria: results.insertId, nombre });
+    });
+});
+
+app.delete('/categorias/:id', (req, res) => {
+    const { id } = req.params;
+    conexion.query('DELETE FROM categoria WHERE idCategoria = ?', [id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Categoría eliminada con éxito' });
+    });
+});
+
+// Traer categorías de un producto específico
+app.get('/productos/:id/categorias', (req, res) => {
+    const { id } = req.params;
+    conexion.query(
+        `SELECT c.idCategoria, c.nombre 
+         FROM categoria c
+         JOIN producto_categoria pc ON pc.categoria_idCategoria = c.idCategoria
+         WHERE pc.producto_idProducto = ?`,
+        [id],
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
+});
+
+// Asignar categorías a un producto 
+app.put('/productos/:id/categorias', (req, res) => {
+    const { id } = req.params;
+    const { categorias } = req.body; 
+
+    conexion.query('DELETE FROM producto_categoria WHERE producto_idProducto = ?', [id], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (!categorias || categorias.length === 0) {
+            return res.json({ message: 'Categorías actualizadas (sin categorías asignadas)' });
+        }
+
+        const valores = categorias.map(catId => [id, catId]);
+        conexion.query(
+            'INSERT INTO producto_categoria (producto_idProducto, categoria_idCategoria) VALUES ?',
+            [valores],
+            (errInsert) => {
+                if (errInsert) return res.status(500).json({ error: errInsert.message });
+                res.json({ message: 'Categorías actualizadas correctamente' });
+            }
+        );
+    });
+});
+
+// Productos con sus categorías incluidas (para mostrar en el listado)
+app.get('/productos/con-categorias', (req, res) => {
+    conexion.query(
+        `SELECT p.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') AS categorias
+         FROM producto p
+         LEFT JOIN producto_categoria pc ON pc.producto_idProducto = p.idProducto
+         LEFT JOIN categoria c ON c.idCategoria = pc.categoria_idCategoria
+         GROUP BY p.idProducto`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
 });
 
 app.listen(PUERTO, () => {

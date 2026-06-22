@@ -244,5 +244,49 @@ router.get('/reportes/financiero/totales', (req, res) => {
     res.json(resumen);
   });
 });
+// Asignar técnico y/o urgencia (acción del admin)
+router.put('/solicitudes/:id/asignar', (req, res) => {
+  const { id } = req.params;
+  const { tecnico_asignado, urgencia } = req.body;
+
+  if (!tecnico_asignado && !urgencia) {
+    return res.status(400).json({ message: 'Debes enviar al menos tecnico_asignado o urgencia' });
+  }
+
+  // Primero consultamos el estado actual
+  conexion.query('SELECT estado FROM solicitud WHERE idSolicitud = ?', [id], (errConsulta, resultados) => {
+    if (errConsulta) return res.status(500).json({ error: errConsulta.message });
+    if (resultados.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+
+    const estadoActual = resultados[0].estado;
+
+    let query = `UPDATE solicitud SET `;
+    const params = [];
+    const sets = [];
+
+    if (tecnico_asignado) {
+      sets.push('tecnico_asignado = ?');
+      params.push(tecnico_asignado);
+
+      // Solo cambia el estado si estaba en Pendiente
+      if (estadoActual === 'Pendiente') {
+        sets.push('estado = ?');
+        params.push('En proceso');
+      }
+    }
+    if (urgencia) {
+      sets.push('urgencia = ?');
+      params.push(urgencia);
+    }
+
+    query += sets.join(', ') + ' WHERE idSolicitud = ?';
+    params.push(id);
+
+    conexion.query(query, params, (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: 'Solicitud asignada correctamente' });
+    });
+  });
+});
 
 export default router;

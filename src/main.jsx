@@ -3,11 +3,14 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 import './CSS/index.css'
+import Pago from './Paginas/Pago'
 import Home from './Paginas/Home'
 import Login from './Paginas/Login'
-import Usuarios from './Paginas/Usuarios'
-import Register from './Paginas/Register'
 import Perfil from './Paginas/Perfil'
+import Usuarios from './Paginas/Usuarios'
+import Catalogo from "./Paginas/Catalogo";
+import Register from './Paginas/Register'
+import Carrito_compra from "./Paginas/Carrito_compra";
 import Home_invited from './Paginas/Home_invited'
 import Panel_Solicitud from './Paginas/PanelSolicitudes'
 import Solicitud from './Paginas/SolicitudMantenimiento'
@@ -37,6 +40,9 @@ createRoot(document.getElementById('root')).render(
 
         <Route path="/solicitud" element={<Navigate to="/panel_solicitud" replace />} />
         <Route path="/Perfil" element={<Perfil />} />
+        <Route path="/Pago" element={<Pago />} />
+        <Route path="/Catalogo" element={<Catalogo />} />
+        <Route path="/Carrito_compra" element={<Carrito_compra />} />
         <Route path="/register" element={<Register />} />
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="*" element={<Navigate to="/" replace />} />
