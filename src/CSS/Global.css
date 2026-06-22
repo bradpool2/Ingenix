@@ -8,6 +8,46 @@ body{
   
 
 }
+.titulo-perfil {
+  color: #000000;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.perfil-datos {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.dato-grupo label {
+  display: block;
+  font-weight: bold;
+  color: #666666; 
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.dato-grupo span {
+  color: #111111; 
+  font-size: 16px;
+}
+
+
+/* Css de perfil.jsx */
+.badge-rol {
+  display: inline-block;
+  background-color: #f0f0f0;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.btn-volver {
+  width: 100%;
+  margin-top: 25px;
+}
 
 
 .contenedor-padre{

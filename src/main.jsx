@@ -5,9 +5,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './CSS/index.css'
 import Home from './Paginas/Home'
 import Login from './Paginas/Login'
-import Relojs from './Paginas/Relojes'
 import Usuarios from './Paginas/Usuarios'
 import Register from './Paginas/Register'
+import Perfil from './Paginas/Perfil'
 import Home_invited from './Paginas/Home_invited'
 import Panel_Solicitud from './Paginas/PanelSolicitudes'
 import Solicitud from './Paginas/SolicitudMantenimiento'
@@ -27,7 +27,6 @@ createRoot(document.getElementById('root')).render(
           </RutaProtegida>
         } />
         
-        <Route path="/relojes" element={<Relojs />} />
         
         <Route path="/panel_solicitud" element={<Panel_Solicitud />}>
           <Route path="mantenimiento" element={<Solicitud />} />
@@ -37,6 +36,7 @@ createRoot(document.getElementById('root')).render(
         </Route>
 
         <Route path="/solicitud" element={<Navigate to="/panel_solicitud" replace />} />
+        <Route path="/Perfil" element={<Perfil />} />
         <Route path="/register" element={<Register />} />
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="*" element={<Navigate to="/" replace />} />

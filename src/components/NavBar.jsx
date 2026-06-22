@@ -14,6 +14,8 @@
       sessionStorage.clear();
       navigate('/', { replace: true });
     };
+    const userString = localStorage.getItem('user');
+    const usuario = userString ? JSON.parse(userString) : null;
 
     
 
@@ -21,6 +23,7 @@
       <nav>
         <div className="nav-links">
           <div className='logo-container'>
+            <span>{usuario?.user}</span>
             <img className='logo' src={logo} alt="Logo" />
           </div>
 
@@ -34,17 +37,20 @@
           {user && (
             <>
               <Link to="/home">Home</Link>
+              <Link to="/Perfil">Perfil</Link>
+
 
               {rol === 'admin' && (
                 <>
                   <Link to="/panel_solicitud">Solicitudes</Link>
                   <Link to="/usuarios">Usuarios</Link>
+                  <Link to="/Perfil">Perfil</Link>
+
                 </>
               )}
 
               {rol === 'tecnico' && (
                 <>
-                  <Link to="/relojes">Relojes</Link>
                   <Link to="/panel_solicitud">Solicitudes</Link>
                 </>
               )}
@@ -52,7 +58,6 @@
               {rol === 'Cliente'  && (
                 <>
                   <Link to="/panel_solicitud">Solicitudes</Link>
-                  <Link to="/perfil">Perfil</Link>
                 </>
               )}
             </>

@@ -110,9 +110,14 @@ export default function SolicitudMantenimiento() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevaSolicitud)
       });
+      const data = await res.json();
+      console.log(data);
+
       if (res.ok) {
         alert('Solicitud guardada correctamente');
         navigate('/panel_solicitud');
+      } else {
+        alert(data.error);
       }
     } catch (err) {
       console.error(err);

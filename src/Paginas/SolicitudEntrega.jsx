@@ -126,7 +126,6 @@ export default function SolicitudEntrega() {
 
       <div className="tarjeta-entrega-footer">
 
-        {/* BOTONES TÉCNICO */}
         {rol === 'tecnico' && SIGUIENTE_ESTADO_TECNICO[solicitud.estado] && (
           <button
             className="btn-cambiar-estado"
@@ -140,7 +139,6 @@ export default function SolicitudEntrega() {
           </button>
         )}
 
-        {/* BOTÓN TÉCNICO — enviar a revisión admin */}
         {rol === 'tecnico' && solicitud.estado === 'Terminado' && (
           <button
             className="btn-cambiar-estado"
@@ -150,7 +148,6 @@ export default function SolicitudEntrega() {
           </button>
         )}
 
-        {/* BOTONES ADMIN */}
         {rol === 'admin' && SIGUIENTE_ESTADO_ADMIN[solicitud.estado] && (
           <button
             className="btn-cambiar-estado"
@@ -160,7 +157,6 @@ export default function SolicitudEntrega() {
           </button>
         )}
 
-        {/* BOTÓN ADMIN — devolver al técnico */}
         {rol === 'admin' && solicitud.estado === 'En revision' && (
           <button
             className="btn-cancelar"
@@ -170,7 +166,6 @@ export default function SolicitudEntrega() {
           </button>
         )}
 
-        {/* BOTÓN ADMIN — cancelar */}
         {rol === 'admin' && !['Entregado', 'Cancelado'].includes(solicitud.estado) && (
           <button
             className="btn-cancelar"
@@ -186,7 +181,6 @@ export default function SolicitudEntrega() {
   return (
     <div className="entrega-contenedor">
 
-      {/* Modal devolver */}
       {modalDevolver && (
         <div className="modal-overlay">
           <div className="modal-caja">
@@ -215,7 +209,6 @@ export default function SolicitudEntrega() {
         </div>
       )}
 
-      {/* Buscador */}
       <div className="entrega-buscador">
         <p className="formulario-titulo">Solicitud de Entrega</p>
         <p className="formulario-subtitulo">Busca por número de orden o filtra por estado</p>
@@ -236,7 +229,6 @@ export default function SolicitudEntrega() {
         {resultadoBusqueda && <TarjetaSolicitud solicitud={resultadoBusqueda} />}
       </div>
 
-      {/* Filtros */}
       <div className="entrega-filtros">
         {filtrosPorRol().map(e => (
           <button
@@ -252,7 +244,6 @@ export default function SolicitudEntrega() {
         ))}
       </div>
 
-      {/* Lista */}
       <div className="entrega-lista">
         {solicitudesFiltradas.length === 0
           ? <p className="resumen-vacio">No hay solicitudes en estado "{filtro}"</p>

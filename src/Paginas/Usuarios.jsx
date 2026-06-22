@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import UserManagement from './Usarios_Crud';
 import Catalog from './Productos_Crud';
+import ReporteFinanciero from '../Paginas/ReportesFinancieros';
 import '../CSS/AdminPanel.css';
 import { FaBoxesStacked } from "react-icons/fa6";
 import { FaHouseUser } from "react-icons/fa";
 import { FaUsersGear } from "react-icons/fa6";
+import { FaChartLine } from "react-icons/fa6";
 
 import { FaRegUser } from "react-icons/fa";
 
@@ -16,6 +18,7 @@ const VIEWS = {
   home:     { label: 'Panel de administración' },
   users:    { label: 'Gestión de usuarios' },
   products: { label: 'Gestión de productos' },
+  reportes: { label: 'Reporte Financiero' },
 };
 
 export default function AdminPanel() {
@@ -78,6 +81,8 @@ export default function AdminPanel() {
           Usuarios</button>
         <button className={`nav-item ${view === 'products' ? 'active' : ''}`} onClick={() => setView('products')}><FaBoxesStacked />
         Productos</button>
+        <button className={`nav-item ${view === 'reportes' ? 'active' : ''}`} onClick={() => setView('reportes')}><FaChartLine />
+        Reportes</button>
       </aside>
 
       <main className="main-section">
@@ -95,10 +100,15 @@ export default function AdminPanel() {
               <FaBoxesStacked color='black' size={35} />
                 <span className="hc-label">Gestión de productos</span>
               </div>
+              <div className="home-card" onClick={() => setView('reportes')}>
+              <FaChartLine color='black' size={35} />
+                <span className="hc-label">Reporte Financiero</span>
+              </div>
             </div>
           )}
           {view === 'users'    && <UserManagement users={users} onUpdate={updateUser} onDelete={deleteUser} />}
           {view === 'products' && <Catalog products={products} onAdd={addProduct} onDelete={deleteProduct} />}
+          {view === 'reportes' && <ReporteFinanciero />}
         </div>
       </main>
 

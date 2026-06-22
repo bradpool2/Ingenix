@@ -773,3 +773,178 @@
     border-radius: 4px;
     font-size: 13px;
   }
+  .reporte-contenedor {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    padding: 1.5rem;
+    max-width: 900px;
+  }
+  .reporte-tarjeta {
+    background: white;
+    border: 2px solid #222;
+    border-radius: 12px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: #222;
+  }
+  
+  .reporte-tarjeta-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+    background: transparent;
+  }
+  
+  .reporte-tarjeta-valor {
+    font-size: 22px;
+    font-weight: 600;
+    color: #222;
+    background: transparent;
+  }
+  
+  .reporte-tarjeta-cantidad {
+    font-size: 12px;
+    color: #888;
+    background: transparent;
+  }
+  
+  .reporte-tarjeta.destacada {
+    background: #222;
+    color: white;
+  }
+  
+  .reporte-tarjeta.destacada .reporte-tarjeta-label,
+  .reporte-tarjeta.destacada .reporte-tarjeta-cantidad {
+    color: #ccc;
+  }
+  
+  .reporte-tarjeta.destacada .reporte-tarjeta-valor {
+    color: white;
+  }
+  
+  .reporte-tarjetas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  
+  .reporte-tarjeta {
+    background: white;
+    border: 2px solid #222;
+    border-radius: 12px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .reporte-tarjeta.destacada {
+    background: #222;
+    color: white;
+  }
+  
+  .reporte-tarjeta-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+  }
+  
+  .reporte-tarjeta-valor {
+    font-size: 22px;
+    font-weight: 600;
+  }
+  
+  .reporte-tarjeta-cantidad {
+    font-size: 12px;
+    opacity: 0.6;
+  }
+  
+  .reporte-grafica {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    height: 200px;
+    padding: 1rem;
+    border: 2px solid #222;
+    border-radius: 12px;
+    overflow-x: auto;
+  }
+  
+  .grafica-columna {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 50px;
+  }
+  
+  .grafica-barras {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 160px;
+  }
+  
+  .barra {
+    width: 16px;
+    border-radius: 3px 3px 0 0;
+    min-height: 2px;
+    transition: height 0.3s;
+  }
+  
+  .barra.mantenimiento { background: #222; }
+  .barra.venta { background: #aaa; }
+  
+  .grafica-label {
+    font-size: 11px;
+    color: #888;
+  }
+  
+  .grafica-leyenda {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 13px;
+    color: #444;
+  }
+  
+  .leyenda-color {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 6px;
+  }
+  
+  .leyenda-color.mantenimiento { background: #222; }
+  .leyenda-color.venta { background: #aaa; }
+  
+  .reporte-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  
+  .reporte-tabla th,
+  .reporte-tabla td {
+    border: 1px solid #ddd;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  
+  .reporte-tabla th {
+    background: #222;
+    color: white;
+  }
+  
+  .reporte-tabla tr:nth-child(even) {
+    background: #f9f9f9;
+  }
+  .resumen-vacio {
+    color: #aaa !important;
+    background: transparent;
+  }
