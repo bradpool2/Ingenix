@@ -3,9 +3,9 @@ import 'dotenv/config';
  
 const conexion = mysql.createPool({
     host: 'localhost',
-    database: 'ingenix2',
+    database: 'ingenix',
     user: 'root',
-    password: '1234'
+    password: ''
 });
  
 conexion.getConnection((error, connection) => {
