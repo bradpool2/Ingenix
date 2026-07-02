@@ -104,7 +104,7 @@ export default function SolicitudMantenimiento() {
       total: totalEstimado,
       fecha: new Date().toLocaleDateString('es-CO')
     };
-  
+
     try {
       const res = await authFetch('http://localhost:3000/solicitudes', {
         method: 'POST',
@@ -171,10 +171,10 @@ export default function SolicitudMantenimiento() {
 
   return (
     <div className="solicitud-root-container">
-      
+
       <button className="btn-resumen-flotante" onClick={() => setVerResumen(!verResumen)}>
         <span className="icono">
-          {verResumen ? <BiAlignRight color='black'/> : <BiAlignJustify color='black'/> }
+          {verResumen ? <BiAlignRight color='black' /> : <BiAlignJustify color='black' />}
         </span>
       </button>
 
@@ -192,29 +192,29 @@ export default function SolicitudMantenimiento() {
         <p className="seccion-label">Daños</p>
         {danos.length === 0
           ? <p className="resumen-vacio">Ninguno marcado</p>
-          : danos.map(d => <p key={d} className="resumen-item">{d}</p>) 
+          : danos.map(d => <p key={d} className="resumen-item">{d}</p>)
         }
 
         <p className="seccion-label">Servicios</p>
         {servicios.length === 0
           ? <p className="resumen-vacio">Ninguno seleccionado</p>
           : servicios.map(s => (
-              <div key={s.nombre} className="resumen-fila">
-                <span>{s.nombre}</span>
-                <span>${s.precio.toLocaleString('es-CO')}</span>
-              </div>
-            ))
+            <div key={s.nombre} className="resumen-fila">
+              <span>{s.nombre}</span>
+              <span>${s.precio.toLocaleString('es-CO')}</span>
+            </div>
+          ))
         }
 
         <p className="seccion-label">Piezas</p>
         {Object.keys(piezas).length === 0
           ? <p className="resumen-vacio">Ninguna seleccionada</p>
           : Object.keys(piezas).map(k => (
-              <div key={k} className="resumen-fila">
-                <span>{k}</span>
-                <span>${(piezas[k] || 0).toLocaleString('es-CO')}</span>
-              </div>
-            ))
+            <div key={k} className="resumen-fila">
+              <span>{k}</span>
+              <span>${(piezas[k] || 0).toLocaleString('es-CO')}</span>
+            </div>
+          ))
         }
 
         <div className="resumen-total">
@@ -224,7 +224,7 @@ export default function SolicitudMantenimiento() {
       </div>
 
       <div className="layout-pestañas-panel">
-        
+
         <div className="pestanas-navegacion">
           {pestañas.map((p) => (
             <button
@@ -354,7 +354,7 @@ export default function SolicitudMantenimiento() {
             <div>
               <p className="formulario-titulo">Piezas a reemplazar</p>
               <p className="formulario-subtitulo">Marca las piezas e ingresa su precio en COP</p>
-              <div className="grid-opciones-compactas">
+              <div className="grid-piezas">   {/* ← solo esto cambia */}
                 {piezasData.map((p) => (
                   <div key={p.nombre} className={`pieza-item ${piezas[p.nombre] !== undefined ? 'sel' : ''}`}>
                     <input
@@ -395,7 +395,7 @@ export default function SolicitudMantenimiento() {
                   {danos.length === 0 ? <p className="resumen-vacio">Ninguno</p> : danos.map(d => <p key={d} className="resumen-item">{d}</p>)}
                 </div>
               </div>
-              
+
               <p className="seccion-label">Servicios</p>
               {servicios.length === 0 ? <p className="resumen-vacio">Ninguno</p> : servicios.map(s => (
                 <div key={s.nombre} className="resumen-fila">
@@ -403,7 +403,7 @@ export default function SolicitudMantenimiento() {
                   <span>${s.precio.toLocaleString('es-CO')} COP</span>
                 </div>
               ))}
-              
+
               <div className="resumen-total-final">
                 <span>Total estimado</span>
                 <span>${totalEstimado.toLocaleString('es-CO')} COP</span>

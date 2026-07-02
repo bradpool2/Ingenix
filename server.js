@@ -17,8 +17,32 @@ const PUERTO = 3000;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
-
 app.use(rutasSolicitudes);
+
+// ─── Multer (imágenes) ────────────────────────────────────────────────────────
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const carpeta = './uploads/solicitudes';
+        if (!fs.existsSync(carpeta)) fs.mkdirSync(carpeta, { recursive: true });
+        cb(null, carpeta);
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `solicitud_${Date.now()}${ext}`);
+    }
+});
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const tiposValidos = ['image/jpeg', 'image/png', 'image/webp'];
+        if (tiposValidos.includes(file.mimetype)) cb(null, true);
+        else cb(new Error('Tipo de archivo no permitido'));
+    }
+});
+
+app.use('/uploads', express.static('uploads'));
 
 app.get('/', (req, res) => {
     res.send('🟢 API funcionando correctamente');
@@ -44,7 +68,7 @@ app.post('/login', (req, res) => {
 
             const usuario = results[0];
             const coinciden = await bcrypt.compare(pass, usuario.pass);
-            
+
             if (!coinciden) {
                 return res.status(401).json({ message: 'Credenciales inválidas' });
             }
@@ -60,34 +84,54 @@ app.post('/login', (req, res) => {
     );
 });
 
+
+app.post('/usuarios/registro', async (req, res) => {
+    const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
+
+    if (!nombre || !correo || !documento || !pass) {
+        return res.status(400).json({ message: 'Faltan datos obligatorios' });
+    }
+
+    try {
+        const saltos = await bcrypt.genSalt(10);
+        const passEncriptada = await bcrypt.hash(pass, saltos);
+
+        conexion.query(
+            'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombre, correo, documento, direccion, passEncriptada, rol_idRol || 4],
+            (err, results) => {
+                if (err) {
+                    console.error('❌ Error POST /usuarios/registro:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.status(201).json({ message: 'Usuario registrado con éxito', idUsuario: results.insertId });
+            }
+        );
+    } catch (error) {
+        res.status(500).json({ error: 'Error interno al procesar la contraseña' });
+    }
+});
+
 app.get('/usuario', (req, res) => {
     const { correo, documento } = req.query;
-    
 
     if (!correo && !documento) {
-        return res.status(400).json({ message: 'Se requiere el parámetro correo o documento para validar.' });
+        return res.status(400).json({ message: 'Se requiere el parámetro correo o documento.' });
     }
 
     let sql = 'SELECT idUsuario, nombre, correo, documento FROM usuario WHERE ';
     let parametro = '';
 
-    if (correo) {
-        sql += 'correo = ?';
-        parametro = correo;
-    } else if (documento) {
-        sql += 'documento = ?';
-        parametro = documento;
-    }
+    if (correo) { sql += 'correo = ?'; parametro = correo; }
+    else { sql += 'documento = ?'; parametro = documento; }
 
     conexion.query(sql, [parametro], (err, results) => {
-        if (err) {
-            console.error('❌ Error en GET /usuario:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results); 
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
     });
 });
 
+// ─── Usuarios (protegidas) ────────────────────────────────────────────────────
 app.get('/usuarios', verificarToken, soloAdmin, (req, res) => {
     conexion.query(
         `SELECT u.idUsuario, u.nombre, u.correo, u.documento, u.direccion, u.rol_idRol, r.nombreRol AS rol 
@@ -115,10 +159,7 @@ app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
             'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?)',
             [nombre, correo, documento, direccion, passEncriptada, rol_idRol || 1],
             (err, results) => {
-                if (err) {
-                    console.error('❌ Error POST /usuarios:', err);
-                    return res.status(500).json({ error: err.message });
-                }
+                if (err) return res.status(500).json({ error: err.message });
                 res.status(201).json({ message: 'Usuario creado con éxito', idUsuario: results.insertId });
             }
         );
@@ -127,19 +168,20 @@ app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
     }
 });
 
-app.put('/usuarios/:id', verificarToken, soloAdmin, (req, res) => {
+app.put('/usuarios/:id', verificarToken, (req, res) => {
     const { id } = req.params;
     const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
 
     conexion.query(
         'UPDATE usuario SET nombre = ?, correo = ?, documento = ?, direccion = ?, telefono = ?, rol_idRol = ? WHERE idUsuario = ?',
         [nombre, correo, documento, direccion, telefono, rol_idRol, id],
-        (err, results) => {
+        (err) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Usuario actualizado con éxito' });
         }
     );
 });
+
 app.get('/usuarios/tecnicos', verificarToken, soloAdmin, (req, res) => {
     conexion.query(
         `SELECT u.idUsuario, u.nombre 
@@ -152,146 +194,77 @@ app.get('/usuarios/tecnicos', verificarToken, soloAdmin, (req, res) => {
         }
     );
 });
+
 app.delete('/usuarios/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
-
-    conexion.query('DELETE FROM usuario WHERE idUsuario = ?', [id], (err, results) => {
+    conexion.query('DELETE FROM usuario WHERE idUsuario = ?', [id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'Usuario eliminado con éxito' });
     });
 });
 
+// ─── Productos ────────────────────────────────────────────────────────────────
 app.get('/productos', verificarToken, (req, res) => {
     conexion.query('SELECT * FROM producto', (err, results) => {
-        if (err) {
-            console.error('❌ Error en GET /productos:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
+        if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
 });
 
-app.post('/productos',  verificarToken, soloAdmin, (req, res) => {
-    const { nombre, descripcion, precio, stock } = req.body;
+app.get('/productos/con-categorias', (req, res) => {
+    conexion.query(
+        `SELECT p.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') AS categorias
+         FROM producto p
+         LEFT JOIN producto_categoria pc ON pc.producto_idProducto = p.idProducto
+         LEFT JOIN categoria c ON c.idCategoria = pc.categoria_idCategoria
+         GROUP BY p.idProducto`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
+});
 
+app.post('/productos', verificarToken, soloAdmin, (req, res) => {
+    const { nombre, descripcion, precio, stock } = req.body;
     if (!nombre || !precio) {
         return res.status(400).json({ message: 'Nombre y Precio son campos requeridos' });
     }
-
     conexion.query(
         'INSERT INTO producto (nombre, descripcion, precio, stock) VALUES (?, ?, ?, ?)',
         [nombre, descripcion, precio, stock || 0],
         (err, results) => {
-            if (err) {
-                console.error('❌ Error en POST /productos:', err.message);
-                return res.status(500).json({ error: err.message });
-            }
+            if (err) return res.status(500).json({ error: err.message });
             res.status(201).json({ message: 'Producto creado', idProducto: results.insertId });
         }
     );
 });
 
-app.put('/productos/:id',  verificarToken, soloAdmin, (req, res) => {
+app.put('/productos/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
     const { nombre, descripcion, precio, stock } = req.body;
-
     conexion.query(
         'UPDATE producto SET nombre = ?, descripcion = ?, precio = ?, stock = ? WHERE idProducto = ?',
         [nombre, descripcion, precio, stock, id],
-        (err, results) => {
-            if (err) {
-                console.error('❌ Error en PUT /productos:', err.message);
-                return res.status(500).json({ error: err.message });
-            }
+        (err) => {
+            if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Producto actualizado con éxito' });
         }
     );
 });
 
-app.delete('/productos/:id',  verificarToken, soloAdmin, (req, res) => {
+app.delete('/productos/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
-
     conexion.query('DELETE FROM producto_y_solicitud WHERE producto_idProducto = ?', [id], (errRelacion) => {
-        if (errRelacion) {
-            console.error('❌ Error al borrar relaciones del producto:', errRelacion.message);
-            return res.status(500).json({ error: errRelacion.message });
-        }
-
-        conexion.query('DELETE FROM producto WHERE idProducto = ?', [id], (err, results) => {
-            if (err) {
-                console.error('❌ Error en DELETE /productos:', err.message);
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ message: 'Producto eliminado con éxito junto a su historial de uso' });
+        if (errRelacion) return res.status(500).json({ error: errRelacion.message });
+        conexion.query('DELETE FROM producto WHERE idProducto = ?', [id], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Producto eliminado con éxito' });
         });
     });
 });
 
-app.get('/api/dashboard/estadisticas', verificarToken, soloTecnico, (req, res) => {
-    const sql = `
-        SELECT 
-            COUNT(*) as total_solicitudes,
-            IFNULL(SUM(total_estimado), 0) as suma_total
-        FROM solicitud
-        WHERE DATE(fecha_registro) = CURDATE()
-    `;
-    
-    conexion.query(sql, (err, results) => {
-        if (err) {
-            console.error("❌ Error al obtener estadísticas:", err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        const datos = results[0];
-        res.json({
-            mantenimientos: `${datos.total_solicitudes} Activos`,
-            entregas: "Pendientes", 
-            totalEstimado: `${Number(datos.suma_total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`
-        });
-    });
-});
-
-app.get('/api/dashboard/ultimas-solicitudes',verificarToken, soloTecnico, (req, res) => {
-    const sql = `
-        SELECT idSolicitud, DATE_FORMAT(fecha_registro, '%d/%m/%Y') AS fecha, total_estimado 
-        FROM solicitud 
-        ORDER BY fecha_registro DESC 
-        LIMIT 5
-    `;
-    
-    conexion.query(sql, (err, results) => {
-        if (err) {
-            console.error("❌ Error al obtener últimas solicitudes:", err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
-});
-
-app.get('/api/tecnico/solicitudes', (req, res) => {
-    const sql = `
-        SELECT idSolicitud, DATE_FORMAT(fecha_registro, '%d/%m/%Y') AS fecha, total_estimado, estado 
-        FROM solicitud 
-        ORDER BY fecha_registro DESC
-    `;
-    conexion.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-});
-
-app.put('/api/tecnico/solicitudes/:id/estado', (req, res) => {
-    const { id } = req.params;
-    const { nuevoEstado } = req.body;
-
-    const sql = `UPDATE solicitud SET estado = ? WHERE idSolicitud = ?`;
-    
-    conexion.query(sql, [nuevoEstado, id], (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: `Solicitud #${id} actualizada a ${nuevoEstado} con éxito` });
-    });
-});
-
+// ─── Categorías ───────────────────────────────────────────────────────────────
 app.get('/categorias', (req, res) => {
     conexion.query('SELECT * FROM categoria ORDER BY nombre ASC', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -299,19 +272,18 @@ app.get('/categorias', (req, res) => {
     });
 });
 
-app.post('/categorias', (req, res) => {
+app.post('/categorias', verificarToken, soloAdmin, (req, res) => {
     const { nombre } = req.body;
     if (!nombre) return res.status(400).json({ message: 'El nombre es obligatorio' });
-
     conexion.query('INSERT INTO categoria (nombre) VALUES (?)', [nombre], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.status(201).json({ idCategoria: results.insertId, nombre });
     });
 });
 
-app.delete('/categorias/:id', (req, res) => {
+app.delete('/categorias/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
-    conexion.query('DELETE FROM categoria WHERE idCategoria = ?', [id], (err, results) => {
+    conexion.query('DELETE FROM categoria WHERE idCategoria = ?', [id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'Categoría eliminada con éxito' });
     });
@@ -334,13 +306,13 @@ app.get('/productos/:id/categorias', (req, res) => {
 
 app.put('/productos/:id/categorias', (req, res) => {
     const { id } = req.params;
-    const { categorias } = req.body; 
+    const { categorias } = req.body;
 
     conexion.query('DELETE FROM producto_categoria WHERE producto_idProducto = ?', [id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
 
         if (!categorias || categorias.length === 0) {
-            return res.json({ message: 'Categorías actualizadas (sin categorías asignadas)' });
+            return res.json({ message: 'Categorías actualizadas sin asignaciones' });
         }
 
         const valores = categorias.map(catId => [id, catId]);
@@ -355,13 +327,27 @@ app.put('/productos/:id/categorias', (req, res) => {
     });
 });
 
-app.get('/productos/con-categorias', (req, res) => {
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+app.get('/api/dashboard/estadisticas', verificarToken, soloTecnico, (req, res) => {
     conexion.query(
-        `SELECT p.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') AS categorias
-         FROM producto p
-         LEFT JOIN producto_categoria pc ON pc.producto_idProducto = p.idProducto
-         LEFT JOIN categoria c ON c.idCategoria = pc.categoria_idCategoria
-         GROUP BY p.idProducto`,
+        `SELECT COUNT(*) as total_solicitudes, IFNULL(SUM(total_estimado), 0) as suma_total
+         FROM solicitud WHERE DATE(fecha_registro) = CURDATE()`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            const datos = results[0];
+            res.json({
+                mantenimientos: `${datos.total_solicitudes} Activos`,
+                entregas: 'Pendientes',
+                totalEstimado: `${Number(datos.suma_total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`
+            });
+        }
+    );
+});
+
+app.get('/api/dashboard/ultimas-solicitudes', verificarToken, soloTecnico, (req, res) => {
+    conexion.query(
+        `SELECT idSolicitud, DATE_FORMAT(fecha_registro, '%d/%m/%Y') AS fecha, total_estimado 
+         FROM solicitud ORDER BY fecha_registro DESC LIMIT 5`,
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json(results);
@@ -369,59 +355,121 @@ app.get('/productos/con-categorias', (req, res) => {
     );
 });
 
-app.post('/venta', (req, res) => {
+app.get('/api/dashboard/comparativo', verificarToken, soloTecnico, (req, res) => {
+    conexion.query(
+        `SELECT DATE(fecha_registro) AS fecha, COUNT(*) AS total_solicitudes,
+                IFNULL(SUM(total_estimado), 0) AS suma_total
+         FROM solicitud
+         WHERE DATE(fecha_registro) IN (CURDATE(), CURDATE() - INTERVAL 1 DAY)
+         GROUP BY DATE(fecha_registro)`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
+});
+
+// ─── Reportes ─────────────────────────────────────────────────────────────────
+app.get('/api/reportes/semanal', verificarToken, soloAdmin, (req, res) => {
+    conexion.query(
+        `SELECT YEARWEEK(fecha_registro, 1) AS semana,
+                MIN(DATE(fecha_registro)) AS fecha_inicio,
+                MAX(DATE(fecha_registro)) AS fecha_fin,
+                COUNT(*) AS total_solicitudes,
+                IFNULL(SUM(total_estimado), 0) AS suma_total
+         FROM solicitud
+         GROUP BY YEARWEEK(fecha_registro, 1)
+         ORDER BY semana DESC`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
+});
+
+app.get('/api/reportes/mensual', verificarToken, soloAdmin, (req, res) => {
+    conexion.query(
+        `SELECT DATE_FORMAT(fecha_registro, '%Y-%m') AS mes,
+                COUNT(*) AS total_solicitudes,
+                IFNULL(SUM(total_estimado), 0) AS suma_total
+         FROM solicitud
+         GROUP BY DATE_FORMAT(fecha_registro, '%Y-%m')
+         ORDER BY mes DESC`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(results);
+        }
+    );
+});
+
+// ─── Solicitud cliente (mantenimiento o venta) ────────────────────────────────
+app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
+    const { tipo, nombreArticulo, descripcion, urgencia, estadoArticulo, precioEstimado } = req.body;
+    const imagenUrl = req.file ? `/uploads/solicitudes/${req.file.filename}` : null;
+
+    if (!tipo || !nombreArticulo || !descripcion) {
+        return res.status(400).json({ error: 'Faltan datos obligatorios' });
+    }
+
+    const tipoDeSolicitud = tipo === 'mantenimiento' ? 1 : 4;
+    const urgenciaFinal = tipo === 'mantenimiento' ? (urgencia || 'Media') : 'Media';
+    const ordenGenerada = Math.floor(Math.random() * 90000) + 10000;
+
+    conexion.query(
+        `INSERT INTO solicitud (idSolicitud, fecha_registro, cliente_idCliente, estado, TipoDeSolicitud_idDeSolicitud, urgencia)
+         VALUES (?, NOW(), NULL, 'Pendiente', ?, ?)`,
+        [ordenGenerada, tipoDeSolicitud, urgenciaFinal],
+        (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            const detalle = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}` +
+                `${estadoArticulo ? ` | Estado: ${estadoArticulo}` : ''}` +
+                `${precioEstimado ? ` | Precio estimado: $${precioEstimado}` : ''}` +
+                `${imagenUrl ? ` | Imagen: ${imagenUrl}` : ''}`;
+
+            conexion.query(
+                `INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
+                 VALUES (?, ?, 1, ?)`,
+                [tipo === 'mantenimiento' ? 1 : 2, ordenGenerada, detalle],
+                (errDetalle) => {
+                    if (errDetalle) return res.status(500).json({ error: errDetalle.message });
+                    res.status(201).json({ message: 'Solicitud enviada correctamente', numeroOrden: ordenGenerada, tipo, imagenUrl });
+                }
+            );
+        }
+    );
+});
+
+// ─── Ventas (carrito) ─────────────────────────────────────────────────────────
+app.post('/venta', verificarToken, (req, res) => {
     const { idUsuario, total, metodoPago, detallePago, productos } = req.body;
 
     if (!idUsuario || !total || !productos || productos.length === 0) {
         return res.status(400).json({ message: 'Faltan datos para registrar la venta' });
     }
 
-    // 1. Insertar la venta
     conexion.query(
         "INSERT INTO Venta (Fecha, Estado, total, idUsuario) VALUES (CURDATE(), 'pagado', ?, ?)",
         [total, idUsuario],
         (err, resultVenta) => {
-            if (err) {
-                console.error('❌ Error POST /venta:', err);
-                return res.status(500).json({ error: err.message });
-            }
+            if (err) return res.status(500).json({ error: err.message });
 
             const idVenta = resultVenta.insertId;
-
-            // 2. Insertar productos en VentaDetalle
-            const valores = productos.map(p => [
-                p.cantidad,
-                p.precioUnitario,
-                p.cantidad * p.precioUnitario, // subtotal
-                idVenta,
-                p.idProducto
-            ]);
+            const valores = productos.map(p => [p.cantidad, p.precioUnitario, p.cantidad * p.precioUnitario, idVenta, p.idProducto]);
 
             conexion.query(
                 'INSERT INTO VentaDetalle (cantidad, precioUnitario, subtotal, Venta_idVenta, producto_idProducto) VALUES ?',
                 [valores],
                 (err2) => {
-                    if (err2) {
-                        console.error('❌ Error insertando VentaDetalle:', err2);
-                        return res.status(500).json({ error: err2.message });
-                    }
+                    if (err2) return res.status(500).json({ error: err2.message });
 
-                    // 3. Insertar en tabla pago
                     const referencia = 'PAY-' + Date.now();
                     conexion.query(
                         'INSERT INTO pago (Venta_idVenta, metodoPago, referenciaPago, detallePago, estadoPago) VALUES (?, ?, ?, ?, ?)',
                         [idVenta, metodoPago, referencia, detallePago || null, 'aprobado'],
                         (err3) => {
-                            if (err3) {
-                                console.error('❌ Error insertando pago:', err3);
-                                return res.status(500).json({ error: err3.message });
-                            }
-
-                            res.status(201).json({
-                                message: 'Venta y pago registrados correctamente',
-                                idVenta,
-                                referencia
-                            });
+                            if (err3) return res.status(500).json({ error: err3.message });
+                            res.status(201).json({ message: 'Venta y pago registrados correctamente', idVenta, referencia });
                         }
                     );
                 }
@@ -430,10 +478,8 @@ app.post('/venta', (req, res) => {
     );
 });
 
-// ─── Historial de ventas de un usuario ────────────────────────────────────────
-app.get('/ventas/:idUsuario', (req, res) => {
+app.get('/ventas/:idUsuario', verificarToken, (req, res) => {
     const { idUsuario } = req.params;
-
     conexion.query(
         `SELECT v.idVenta, v.Fecha, v.total, v.Estado,
                 vd.cantidad, vd.precioUnitario, vd.subtotal,
@@ -447,143 +493,10 @@ app.get('/ventas/:idUsuario', (req, res) => {
          ORDER BY v.Fecha DESC`,
         [idUsuario],
         (err, results) => {
-            if (err) {
-                console.error('❌ Error GET /ventas:', err);
-                return res.status(500).json({ error: err.message });
-            }
+            if (err) return res.status(500).json({ error: err.message });
             res.json(results);
         }
     );
-});
-// Configuración de multer para guardar imágenes
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const carpeta = './uploads/solicitudes';
-        if (!fs.existsSync(carpeta)) fs.mkdirSync(carpeta, { recursive: true });
-        cb(null, carpeta);
-    },
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        cb(null, `solicitud_${Date.now()}${ext}`);
-    }
-});
-
-const upload = multer({
-    storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-    fileFilter: (req, file, cb) => {
-        const tiposValidos = ['image/jpeg', 'image/png', 'image/webp'];
-        if (tiposValidos.includes(file.mimetype)) cb(null, true);
-        else cb(new Error('Tipo de archivo no permitido'));
-    }
-});
-
-// Ruta para servir las imágenes subidas
-app.use('/uploads', express.static('uploads'));
-
-// Solicitud del cliente (mantenimiento o venta)
-app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
-    const { tipo, nombreArticulo, descripcion, urgencia, estadoArticulo, precioEstimado } = req.body;
-    const imagenUrl = req.file ? `/uploads/solicitudes/${req.file.filename}` : null;
-
-    if (!tipo || !nombreArticulo || !descripcion) {
-        return res.status(400).json({ error: 'Faltan datos obligatorios' });
-    }
-
-    // Determinar el TipoDeSolicitud según el tipo
-    const tipoDeSolicitud = tipo === 'mantenimiento' ? 1 : 4;
-
-    const ordenGenerada = Math.floor(Math.random() * 90000) + 10000;
-
-    const query = `
-        INSERT INTO solicitud (
-            idSolicitud, 
-            fecha_registro, 
-            cliente_idCliente, 
-            estado, 
-            TipoDeSolicitud_idDeSolicitud,
-            urgencia
-        )
-        VALUES (?, NOW(), NULL, 'Pendiente', ?, ?)
-    `;
-
-    const urgenciaFinal = tipo === 'mantenimiento' ? (urgencia || 'Media') : 'Media';
-
-    conexion.query(query, [ordenGenerada, tipoDeSolicitud, urgenciaFinal], (err, result) => {
-        if (err) {
-            console.error('❌ Error al crear solicitud cliente:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-
-        // Guardar el detalle en producto_y_solicitud
-        const detalle = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}${estadoArticulo ? ` | Estado: ${estadoArticulo}` : ''}${precioEstimado ? ` | Precio estimado: $${precioEstimado}` : ''}${imagenUrl ? ` | Imagen: ${imagenUrl}` : ''}`;
-
-        conexion.query(
-            `INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
-             VALUES (?, ?, 1, ?)`,
-            [tipo === 'mantenimiento' ? 1 : 2, ordenGenerada, detalle],
-            (errDetalle) => {
-                if (errDetalle) {
-                    console.error('❌ Error al guardar detalle:', errDetalle.message);
-                    return res.status(500).json({ error: errDetalle.message });
-                }
-
-                res.status(201).json({
-                    message: 'Solicitud enviada correctamente',
-                    numeroOrden: ordenGenerada,
-                    tipo,
-                    imagenUrl
-                });
-            }
-        );
-    });
-});
-app.get('/api/reportes/semanal', verificarToken, soloAdmin, (req, res) => {
-    const sql = `
-        SELECT 
-            YEARWEEK(fecha_registro, 1) AS semana,
-            MIN(DATE(fecha_registro)) AS fecha_inicio,
-            MAX(DATE(fecha_registro)) AS fecha_fin,
-            COUNT(*) AS total_solicitudes,
-            IFNULL(SUM(total_estimado), 0) AS suma_total
-        FROM solicitud
-        GROUP BY YEARWEEK(fecha_registro, 1)
-        ORDER BY semana DESC
-    `;
-    conexion.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-});
-app.get('/api/reportes/mensual', verificarToken, soloAdmin, (req, res) => {
-    const sql = `
-        SELECT 
-            DATE_FORMAT(fecha_registro, '%Y-%m') AS mes,
-            COUNT(*) AS total_solicitudes,
-            IFNULL(SUM(total_estimado), 0) AS suma_total
-        FROM solicitud
-        GROUP BY DATE_FORMAT(fecha_registro, '%Y-%m')
-        ORDER BY mes DESC
-    `;
-    conexion.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-});
-app.get('/api/dashboard/comparativo', verificarToken, soloTecnico, (req, res) => {
-    const sql = `
-        SELECT 
-            DATE(fecha_registro) AS fecha,
-            COUNT(*) AS total_solicitudes,
-            IFNULL(SUM(total_estimado), 0) AS suma_total
-        FROM solicitud
-        WHERE DATE(fecha_registro) IN (CURDATE(), CURDATE() - INTERVAL 1 DAY)
-        GROUP BY DATE(fecha_registro)
-    `;
-    conexion.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
 });
 
 app.listen(PUERTO, () => {

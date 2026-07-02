@@ -896,3 +896,38 @@
 }
 
 .reporte-tabla tr:nth-child(even) { background: #f9fbfa; }
+
+.pieza-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid rgba(153,193,187,.3);
+  min-width: 220px;
+  flex: 1 1 220px;
+}
+
+.texto-pieza-nombre {
+  flex: 1;
+  font-size: 14px;
+  color: #292814;
+  white-space: nowrap;
+}
+
+.pieza-precio-input {
+  width: 120px;
+  min-width: 100px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #c1cbcf;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.pieza-item.sel {
+  border-color: #99c1bb;
+  background: #eef7f5;
+}
+

@@ -116,7 +116,7 @@ router.post('/solicitudes', (req, res) => {
       return res.status(201).json({ message: 'Solicitud guardada correctamente sin servicios' });
     }
 
-    const idProductoAsignado = tipo === 'reloj' ? 1 : 2;
+    const idProductoAsignado = 22;
 
     const queryRelacion = `
       INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
