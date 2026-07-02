@@ -13,6 +13,7 @@ import Register from './Paginas/Register'
 import Carrito_compra from "./Paginas/Carrito_compra";
 import Home_invited from './Paginas/Home_invited'
 import Panel_Solicitud from './Paginas/PanelSolicitudes'
+import SolicitudCliente from './Paginas/SolicitudCliente'
 import Solicitud from './Paginas/SolicitudMantenimiento'
 import SolicitudEntrega from './Paginas/SolicitudEntrega'
 import RutaProtegida from './components/RutaProtegida'
@@ -41,6 +42,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/solicitud" element={<Navigate to="/panel_solicitud" replace />} />
         <Route path="/Perfil" element={<Perfil />} />
         <Route path="/Pago" element={<Pago />} />
+        <Route path="/Solicitud_Cliente" element={<SolicitudCliente />} />
         <Route path="/Catalogo" element={<Catalogo />} />
         <Route path="/Carrito_compra" element={<Carrito_compra />} />
         <Route path="/register" element={<Register />} />

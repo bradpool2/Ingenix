@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import '../CSS/Solicitudes.css';
+import { authFetch } from '../components/api.js';
 
 export default function ReporteFinanciero() {
 
@@ -16,8 +17,8 @@ export default function ReporteFinanciero() {
     setCargando(true);
     try {
       const [resDatos, resTotales] = await Promise.all([
-        fetch(`http://localhost:3000/reportes/financiero?rango=${rango}`),
-        fetch(`http://localhost:3000/reportes/financiero/totales`)
+        authFetch(`http://localhost:3000/reportes/financiero?rango=${rango}`),
+        authFetch(`http://localhost:3000/reportes/financiero/totales`)
       ]);
       setDatos(await resDatos.json());
       setTotales(await resTotales.json());

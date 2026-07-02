@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../CSS/AdminPanel.css';
+import { authFetch } from '../components/api.js';
 
 export default function Usuarios_Crud() {
   const [users, setUsers] = useState([]);
@@ -14,7 +15,7 @@ export default function Usuarios_Crud() {
 
   const obtenerUsuarios = async () => {
     try {
-      const res = await fetch('http://localhost:3000/usuarios');
+      const res = await authFetch('http://localhost:3000/usuarios');
       const data = await res.json();
       setUsers(data);
     } catch (err) {
@@ -29,7 +30,7 @@ export default function Usuarios_Crud() {
   const handleCrear = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3000/usuarios', {
+      const res = await authFetch('http://localhost:3000/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevoUsuario)
@@ -45,7 +46,7 @@ export default function Usuarios_Crud() {
 
   const handleUpdate = async (id, usuarioActualizado) => {
     try {
-      await fetch(`http://localhost:3000/usuarios/${id}`, {
+      await authFetch(`http://localhost:3000/usuarios/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(usuarioActualizado)
@@ -59,7 +60,7 @@ export default function Usuarios_Crud() {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Seguro que deseas eliminar este usuario?')) return;
     try {
-      const res = await fetch(`http://localhost:3000/usuarios/${id}`, {
+      const res = await authFetch(`http://localhost:3000/usuarios/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {

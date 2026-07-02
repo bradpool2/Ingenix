@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../CSS/Solicitudes.css';
+import { authFetch } from '../components/api.js';
 import { BiAlignJustify, BiAlignRight } from "react-icons/bi";
 
 export default function SolicitudMantenimiento() {
@@ -105,7 +106,7 @@ export default function SolicitudMantenimiento() {
     };
   
     try {
-      const res = await fetch('http://localhost:3000/solicitudes', {
+      const res = await authFetch('http://localhost:3000/solicitudes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevaSolicitud)

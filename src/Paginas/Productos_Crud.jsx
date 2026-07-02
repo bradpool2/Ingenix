@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../CSS/AdminPanel.css';
+import { authFetch } from '../components/api.js';
 
 export default function Productos_Crud() {
   const [products, setProducts] = useState([]);
@@ -16,7 +17,7 @@ export default function Productos_Crud() {
 
   const obtenerProductos = async () => {
     try {
-      const res = await fetch('http://localhost:3000/productos/con-categorias');
+      const res = await authFetch('http://localhost:3000/productos/con-categorias');
       const data = await res.json();
       setProducts(data);
     } catch (err) {
@@ -26,7 +27,7 @@ export default function Productos_Crud() {
 
   const obtenerCategorias = async () => {
     try {
-      const res = await fetch('http://localhost:3000/categorias');
+      const res = await authFetch('http://localhost:3000/categorias');
       const data = await res.json();
       setCategorias(data);
     } catch (err) {
@@ -45,7 +46,7 @@ export default function Productos_Crud() {
     e.preventDefault();
     if (!nuevaCategoria.trim()) return;
     try {
-      const res = await fetch('http://localhost:3000/categorias', {
+      const res = await authFetch('http://localhost:3000/categorias', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: nuevaCategoria })
@@ -62,7 +63,7 @@ export default function Productos_Crud() {
   const handleEliminarCategoria = async (id) => {
     if (!window.confirm('¿Eliminar esta categoría? Se quitará de todos los productos que la tengan.')) return;
     try {
-      const res = await fetch(`http://localhost:3000/categorias/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`http://localhost:3000/categorias/${id}`, { method: 'DELETE' });
       if (res.ok) {
         obtenerCategorias();
         obtenerProductos();
@@ -89,7 +90,7 @@ export default function Productos_Crud() {
   const handleCrear = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3000/productos', {
+      const res = await authFetch('http://localhost:3000/productos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,7 +103,7 @@ export default function Productos_Crud() {
       if (res.ok) {
         const creado = await res.json();
         if (nuevoProducto.categoriasSeleccionadas.length > 0) {
-          await fetch(`http://localhost:3000/productos/${creado.idProducto}/categorias`, {
+          await authFetch(`http://localhost:3000/productos/${creado.idProducto}/categorias`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ categorias: nuevoProducto.categoriasSeleccionadas })
@@ -118,7 +119,7 @@ export default function Productos_Crud() {
 
   const handleUpdate = async (id, productoActualizado) => {
     try {
-      await fetch(`http://localhost:3000/productos/${id}`, {
+      await authFetch(`http://localhost:3000/productos/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productoActualizado)
@@ -132,7 +133,7 @@ export default function Productos_Crud() {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Seguro que deseas eliminar este producto? También se eliminará su historial de uso en solicitudes.')) return;
     try {
-      const res = await fetch(`http://localhost:3000/productos/${id}`, {
+      const res = await authFetch(`http://localhost:3000/productos/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {

@@ -1,8 +1,90 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import conexion from '../config/db.js';
 
 const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+
+
+const TIPO_SOLICITUD = {
+  MANTENIMIENTO: 1,
+  VENTA: 4,
+};
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'solicitudes');
+ 
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+ 
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const nombreUnico = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    cb(null, nombreUnico);
+  },
+});
+ 
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+ 
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_MIME.includes(file.mimetype)) {
+      return cb(new Error('FORMATO_NO_PERMITIDO'));
+    }
+    cb(null, true);
+  },
+});
+function generarNumeroOrden() {
+  const fecha = new Date();
+  const yyyymmdd = fecha.toISOString().slice(0, 10).replace(/-/g, '');
+  const aleatorio = Math.floor(1000 + Math.random() * 9000);
+  return `SOL-${yyyymmdd}-${aleatorio}`;
+}
+ 
+function validarMantenimiento(body) {
+  const errores = [];
+  if (!body.nombreArticulo || !body.nombreArticulo.trim()) {
+    errores.push('Indica qué artículo necesita mantenimiento.');
+  }
+  if (!body.descripcion || !body.descripcion.trim()) {
+    errores.push('Describe el daño o el motivo del mantenimiento.');
+  }
+  if (body.urgencia && !['Baja', 'Media', 'Alta'].includes(body.urgencia)) {
+    errores.push('Urgencia inválida.');
+  }
+  return errores;
+}
+ 
+function validarVenta(body) {
+  const errores = [];
+  if (!body.nombreArticulo || !body.nombreArticulo.trim()) {
+    errores.push('Indica qué producto quieres vender.');
+  }
+  if (!body.descripcion || !body.descripcion.trim()) {
+    errores.push('La descripción del producto es obligatoria.');
+  }
+  if (
+    body.estadoArticulo &&
+    !['Excelente', 'Bueno', 'Regular', 'Malo'].includes(body.estadoArticulo)
+  ) {
+    errores.push('Estado del artículo inválido.');
+  }
+  if (body.precioEstimado !== undefined && body.precioEstimado !== '') {
+    const precio = Number(body.precioEstimado);
+    if (Number.isNaN(precio) || precio < 0) {
+      errores.push('El precio estimado debe ser un número válido.');
+    }
+  }
+  return errores;
+}
 // Crear solicitud
 router.post('/solicitudes', (req, res) => {
   const { orden, tipo, subtipo, danos, services, total, fecha } = req.body;
@@ -88,35 +170,107 @@ router.get('/solicitudes', (req, res) => {
     res.json(results);
   });
 });
-router.post('/solicitudes/cliente', (req, res) => {
-  const { tipo, descripcion, cliente_idCliente } = req.body;
-
-  if (!tipo || !descripcion || !cliente_idCliente) {
-    return res.status(400).json({ message: 'Faltan datos obligatorios' });
+router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
+  const { tipo, cliente_idCliente } = req.body;
+ 
+  if (!cliente_idCliente) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(401).json({ message: 'Debes iniciar sesión para enviar una solicitud.' });
   }
-
-  const ordenGenerada = Math.floor(Math.random() * 90000) + 10000;
-
-  const query = `
-    INSERT INTO solicitud (idSolicitud, fecha_registro, cliente_idCliente, estado, TipoDeSolicitud_idDeSolicitud)
-    VALUES (?, NOW(), ?, 'Pendiente', 1)
+ 
+  if (!['mantenimiento', 'venta'].includes(tipo)) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ message: 'Tipo de solicitud inválido.' });
+  }
+ 
+  const errores =
+    tipo === 'mantenimiento' ? validarMantenimiento(req.body) : validarVenta(req.body);
+ 
+  if (errores.length > 0) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ message: errores.join(' '), errores });
+  }
+ 
+  const idTipoSolicitud =
+    tipo === 'mantenimiento' ? TIPO_SOLICITUD.MANTENIMIENTO : TIPO_SOLICITUD.VENTA;
+ 
+  const numeroOrden = generarNumeroOrden();
+  const rutaImagen = req.file ? `/uploads/solicitudes/${req.file.filename}` : null;
+ 
+  const precioEstimado =
+    tipo === 'venta' && req.body.precioEstimado ? Number(req.body.precioEstimado) : null;
+ 
+  const urgencia = tipo === 'mantenimiento' ? req.body.urgencia || 'Media' : 'Media';
+ 
+  const queryInsertarSolicitud = `
+    INSERT INTO solicitud (
+      numeroOrden,
+      fecha_registro,
+      cliente_idCliente,
+      estado,
+      urgencia,
+      total_estimado,
+      TipoDeSolicitud_idDeSolicitud
+    )
+    VALUES (?, NOW(), ?, 'Pendiente', ?, ?, ?)
   `;
-
-  conexion.query(query, [ordenGenerada, cliente_idCliente], (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-
-    const idProductoAsignado = tipo === 'reloj' ? 1 : 2;
-
-    const queryRelacion = `
-      INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
-      VALUES (?, ?, ?, ?)
-    `;
-
-    conexion.query(queryRelacion, [idProductoAsignado, ordenGenerada, 1, descripcion], (errRelacion) => {
-      if (errRelacion) return res.status(500).json({ error: errRelacion.message });
-      res.status(201).json({ message: 'Solicitud enviada correctamente', idSolicitud: ordenGenerada });
-    });
-  });
+ 
+  conexion.query(
+    queryInsertarSolicitud,
+    [
+      numeroOrden,
+      cliente_idCliente,
+      urgencia,
+      precioEstimado ? Math.round(precioEstimado) : null,
+      idTipoSolicitud,
+    ],
+    (errSolicitud, resultSolicitud) => {
+      if (errSolicitud) {
+        if (req.file) fs.unlink(req.file.path, () => {});
+        console.error('❌ Error al insertar en solicitud:', errSolicitud.message);
+        return res.status(500).json({ error: errSolicitud.message });
+      }
+ 
+      const idSolicitud = resultSolicitud.insertId;
+ 
+      const queryInsertarDetalle = `
+        INSERT INTO detalleSolicitud (
+          solicitud_idSolicitud,
+          nombreArticulo,
+          descripcion,
+          estadoArticulo,
+          precioEstimado,
+          imagen
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+ 
+      conexion.query(
+        queryInsertarDetalle,
+        [
+          idSolicitud,
+          req.body.nombreArticulo.trim(),
+          req.body.descripcion.trim(),
+          tipo === 'venta' ? req.body.estadoArticulo || null : null,
+          precioEstimado,
+          rutaImagen,
+        ],
+        (errDetalle) => {
+          if (errDetalle) {
+            if (req.file) fs.unlink(req.file.path, () => {});
+            console.error('❌ Error al insertar en detalleSolicitud:', errDetalle.message);
+            return res.status(500).json({ error: errDetalle.message });
+          }
+ 
+          return res.status(201).json({
+            message: 'Solicitud enviada correctamente',
+            idSolicitud,
+            numeroOrden,
+          });
+        }
+      );
+    }
+  );
 });
 
 // Buscar solicitud por id
@@ -288,5 +442,20 @@ router.put('/solicitudes/:id/asignar', (req, res) => {
     });
   });
 });
+// ---------------------------------------------------------------------------
+// Manejo de errores de multer (tamaño, formato) para esta ruta
+// ---------------------------------------------------------------------------
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'La imagen no debe superar 5 MB.' });
+    }
+  }
+  if (err && err.message === 'FORMATO_NO_PERMITIDO') {
+    return res.status(400).json({ message: 'Formato de imagen no permitido. Usa JPG, PNG o WEBP.' });
+  }
+  next(err);
+});
+ 
 
 export default router;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import NavBar from "../components/NavBar";
 import "../CSS/Global.css";
+import { authFetch } from '../components/api.js';
 
 function Catalogo() {
   const [productos, setProductos] = useState([]);
@@ -11,8 +12,8 @@ function Catalogo() {
 
   useEffect(() => {
     Promise.all([
-      fetch("http://localhost:3000/productos/con-categorias").then((res) => res.json()),
-      fetch("http://localhost:3000/categorias").then((res) => res.json())
+      authFetch("http://localhost:3000/productos/con-categorias").then((res) => res.json()),
+      authFetch("http://localhost:3000/categorias").then((res) => res.json())
     ])
       .then(([dataProductos, dataCategorias]) => {
         setProductos(dataProductos);

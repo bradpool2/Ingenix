@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import '../CSS/PanelSol.css'; // Reutilizamos tus estilos base
+import '../CSS/PanelSol.css'; 
+import { authFetch } from '../components/api.js';
 
 export default function GestionTecnica() {
   const [solicitudes, setSolicitudes] = useState([]);
@@ -7,7 +8,7 @@ export default function GestionTecnica() {
 
   // Cargar solicitudes al entrar
   const cargarSolicitudes = () => {
-    fetch('http://localhost:3000/api/tecnico/solicitudes')
+    authFetch('http://localhost:3000/api/tecnico/solicitudes')
       .then(res => res.json())
       .then(data => {
         if (!data.error) setSolicitudes(data);
@@ -22,7 +23,7 @@ export default function GestionTecnica() {
 
   // Función para cambiar el estado desde el frontend
   const cambiarEstado = (id, nuevoEstado) => {
-    fetch(`http://localhost:3000/api/tecnico/solicitudes/${id}/estado`, {
+    authFetch(`http://localhost:3000/api/tecnico/solicitudes/${id}/estado`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nuevoEstado })

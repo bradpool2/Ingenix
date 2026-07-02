@@ -2,6 +2,7 @@ import { useState } from 'react';
 import '../CSS/Global.css';
 import NavBar from '../components/NavBar';
 import { FaRegUser } from "react-icons/fa";
+import { authFetch } from '../components/api.js';
 
 function Perfil() {
   const userGuardado = JSON.parse(localStorage.getItem('user'));
@@ -29,11 +30,11 @@ function Perfil() {
 
   const guardar = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/usuarios/${userGuardado.idUsuario}`, {
+      const res = await authFetch(`http://localhost:3000/usuarios/${userGuardado.idUsuario}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre: datos.user,                 // 👈 cambiado de datos.nombre a datos.user (porque tu estado local se llama 'user')
+          nombre: datos.user,                 
           correo: datos.correo,
           documento: userGuardado.documento,
           direccion: userGuardado.direccion,

@@ -45,7 +45,7 @@
           <>
             <Link to="/panel_solicitud">Solicitudes</Link>
             <Link to="/perfil">Perfil</Link>
-            <Link to="/usuarios">Usuarios</Link>
+            <Link to="/usuarios">Gestion</Link>
           </>
         )}
 
@@ -58,7 +58,7 @@
 
         {(rol === 'usuario' || rol === 'cliente') && (
           <>
-            <Link to="/mis-solicitudes">Mis Solicitudes</Link>
+            <Link to="/Solicitud_Cliente">Mis Solicitudes</Link>
             <Link to="/catalogo">Catálogo</Link>
             <Link to="/perfil">Perfil</Link>
             <Carrito_plegable />

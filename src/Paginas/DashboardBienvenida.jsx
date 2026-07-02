@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BiWrench, BiPackage, BiDollarCircle, BiHistory } from "react-icons/bi";
 import '../CSS/PanelSol.css'; 
+import { authFetch } from '../components/api.js';
+
 
 export default function DashboardBienvenida() {
   const [stats, setStats] = useState({ mantenimientos: "0 Activos", entregas: "0 Órdenes", totalEstimado: "$0 COP" });
@@ -9,8 +11,8 @@ export default function DashboardBienvenida() {
 
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:3000/api/dashboard/estadisticas').then(res => res.json()),
-      fetch('http://localhost:3000/api/dashboard/ultimas-solicitudes').then(res => res.json())
+      authFetch('http://localhost:3000/api/dashboard/estadisticas').then(res => res.json()),
+      authFetch('http://localhost:3000/api/dashboard/ultimas-solicitudes').then(res => res.json())
     ])
     .then(([dataStats, dataLista]) => {
       if (!dataStats.error) {

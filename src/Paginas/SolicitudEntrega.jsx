@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import '../CSS/Solicitudes.css';
+import { authFetch } from '../components/api.js';
+
 
 const COLORES_ESTADO = {
   'Pendiente': '#888',
@@ -56,7 +58,7 @@ export default function SolicitudEntrega() {
   
   const cargarTecnicos = async () => {
     try {
-      const res = await fetch('http://localhost:3000/usuarios/tecnicos');
+      const res = await authFetch('http://localhost:3000/usuarios/tecnicos');
       const data = await res.json();
       setTecnicos(data);
     } catch (err) {
@@ -66,7 +68,7 @@ export default function SolicitudEntrega() {
 
   const cargarSolicitudes = async () => {
     try {
-      const res = await fetch('http://localhost:3000/solicitudes');
+      const res = await authFetch('http://localhost:3000/solicitudes');
       const data = await res.json();
       setSolicitudes(data);
     } catch (err) {
@@ -80,7 +82,7 @@ export default function SolicitudEntrega() {
     setErrorBusqueda('');
     setResultadoBusqueda(null);
     try {
-      const res = await fetch(`http://localhost:3000/solicitudes/${busqueda.trim()}`);
+      const res = await authFetch(`http://localhost:3000/solicitudes/${busqueda.trim()}`);
       if (!res.ok) {
         setErrorBusqueda('No se encontró ninguna solicitud con ese número.');
         return;
@@ -97,7 +99,7 @@ export default function SolicitudEntrega() {
   const cambiarEstado = async (id, nuevoEstado, opciones = {}) => {
     try {
       const body = { estado: nuevoEstado, ...opciones };
-      const res = await fetch(`http://localhost:3000/solicitudes/${id}/estado`, {
+      const res = await authFetch(`http://localhost:3000/solicitudes/${id}/estado`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -117,7 +119,7 @@ export default function SolicitudEntrega() {
   const asignarCaso = async () => {
     if (!modalAsignar) return;
     try {
-      const res = await fetch(`http://localhost:3000/solicitudes/${modalAsignar.idSolicitud}/asignar`, {
+      const res = await authFetch(`http://localhost:3000/solicitudes/${modalAsignar.idSolicitud}/asignar`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

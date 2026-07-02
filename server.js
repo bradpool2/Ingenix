@@ -4,7 +4,11 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import 'dotenv/config';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import conexion from './Backend/config/db.js';
+import { verificarToken, soloAdmin, soloTecnico } from './Backend/Middleware/Auth.js';
 import rutasSolicitudes from './Backend/Routes/solicitudes.js';
 
 const app = express();
@@ -84,7 +88,7 @@ app.get('/usuario', (req, res) => {
     });
 });
 
-app.get('/usuarios', (req, res) => {
+app.get('/usuarios', verificarToken, soloAdmin, (req, res) => {
     conexion.query(
         `SELECT u.idUsuario, u.nombre, u.correo, u.documento, u.direccion, u.rol_idRol, r.nombreRol AS rol 
          FROM usuario u 
@@ -96,7 +100,7 @@ app.get('/usuarios', (req, res) => {
     );
 });
 
-app.post('/usuarios', async (req, res) => {
+app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
     const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
 
     if (!nombre || !correo || !documento || !pass) {
@@ -123,7 +127,7 @@ app.post('/usuarios', async (req, res) => {
     }
 });
 
-app.put('/usuarios/:id', (req, res) => {
+app.put('/usuarios/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
     const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
 
@@ -136,7 +140,7 @@ app.put('/usuarios/:id', (req, res) => {
         }
     );
 });
-app.get('/usuarios/tecnicos', (req, res) => {
+app.get('/usuarios/tecnicos', verificarToken, soloAdmin, (req, res) => {
     conexion.query(
         `SELECT u.idUsuario, u.nombre 
          FROM usuario u 
@@ -148,7 +152,7 @@ app.get('/usuarios/tecnicos', (req, res) => {
         }
     );
 });
-app.delete('/usuarios/:id', (req, res) => {
+app.delete('/usuarios/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
 
     conexion.query('DELETE FROM usuario WHERE idUsuario = ?', [id], (err, results) => {
@@ -157,7 +161,7 @@ app.delete('/usuarios/:id', (req, res) => {
     });
 });
 
-app.get('/productos', (req, res) => {
+app.get('/productos', verificarToken, (req, res) => {
     conexion.query('SELECT * FROM producto', (err, results) => {
         if (err) {
             console.error('❌ Error en GET /productos:', err.message);
@@ -167,7 +171,7 @@ app.get('/productos', (req, res) => {
     });
 });
 
-app.post('/productos', (req, res) => {
+app.post('/productos',  verificarToken, soloAdmin, (req, res) => {
     const { nombre, descripcion, precio, stock } = req.body;
 
     if (!nombre || !precio) {
@@ -187,7 +191,7 @@ app.post('/productos', (req, res) => {
     );
 });
 
-app.put('/productos/:id', (req, res) => {
+app.put('/productos/:id',  verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
     const { nombre, descripcion, precio, stock } = req.body;
 
@@ -204,7 +208,7 @@ app.put('/productos/:id', (req, res) => {
     );
 });
 
-app.delete('/productos/:id', (req, res) => {
+app.delete('/productos/:id',  verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
 
     conexion.query('DELETE FROM producto_y_solicitud WHERE producto_idProducto = ?', [id], (errRelacion) => {
@@ -223,12 +227,13 @@ app.delete('/productos/:id', (req, res) => {
     });
 });
 
-app.get('/api/dashboard/estadisticas', (req, res) => {
+app.get('/api/dashboard/estadisticas', verificarToken, soloTecnico, (req, res) => {
     const sql = `
         SELECT 
             COUNT(*) as total_solicitudes,
             IFNULL(SUM(total_estimado), 0) as suma_total
         FROM solicitud
+        WHERE DATE(fecha_registro) = CURDATE()
     `;
     
     conexion.query(sql, (err, results) => {
@@ -246,7 +251,7 @@ app.get('/api/dashboard/estadisticas', (req, res) => {
     });
 });
 
-app.get('/api/dashboard/ultimas-solicitudes', (req, res) => {
+app.get('/api/dashboard/ultimas-solicitudes',verificarToken, soloTecnico, (req, res) => {
     const sql = `
         SELECT idSolicitud, DATE_FORMAT(fecha_registro, '%d/%m/%Y') AS fecha, total_estimado 
         FROM solicitud 
@@ -286,7 +291,6 @@ app.put('/api/tecnico/solicitudes/:id/estado', (req, res) => {
         res.json({ message: `Solicitud #${id} actualizada a ${nuevoEstado} con éxito` });
     });
 });
-// ---------------- CATEGORÍAS ----------------
 
 app.get('/categorias', (req, res) => {
     conexion.query('SELECT * FROM categoria ORDER BY nombre ASC', (err, results) => {
@@ -313,7 +317,6 @@ app.delete('/categorias/:id', (req, res) => {
     });
 });
 
-// Traer categorías de un producto específico
 app.get('/productos/:id/categorias', (req, res) => {
     const { id } = req.params;
     conexion.query(
@@ -329,7 +332,6 @@ app.get('/productos/:id/categorias', (req, res) => {
     );
 });
 
-// Asignar categorías a un producto 
 app.put('/productos/:id/categorias', (req, res) => {
     const { id } = req.params;
     const { categorias } = req.body; 
@@ -353,7 +355,6 @@ app.put('/productos/:id/categorias', (req, res) => {
     });
 });
 
-// Productos con sus categorías incluidas (para mostrar en el listado)
 app.get('/productos/con-categorias', (req, res) => {
     conexion.query(
         `SELECT p.*, GROUP_CONCAT(c.nombre SEPARATOR ', ') AS categorias
@@ -366,6 +367,223 @@ app.get('/productos/con-categorias', (req, res) => {
             res.json(results);
         }
     );
+});
+
+app.post('/venta', (req, res) => {
+    const { idUsuario, total, metodoPago, detallePago, productos } = req.body;
+
+    if (!idUsuario || !total || !productos || productos.length === 0) {
+        return res.status(400).json({ message: 'Faltan datos para registrar la venta' });
+    }
+
+    // 1. Insertar la venta
+    conexion.query(
+        "INSERT INTO Venta (Fecha, Estado, total, idUsuario) VALUES (CURDATE(), 'pagado', ?, ?)",
+        [total, idUsuario],
+        (err, resultVenta) => {
+            if (err) {
+                console.error('❌ Error POST /venta:', err);
+                return res.status(500).json({ error: err.message });
+            }
+
+            const idVenta = resultVenta.insertId;
+
+            // 2. Insertar productos en VentaDetalle
+            const valores = productos.map(p => [
+                p.cantidad,
+                p.precioUnitario,
+                p.cantidad * p.precioUnitario, // subtotal
+                idVenta,
+                p.idProducto
+            ]);
+
+            conexion.query(
+                'INSERT INTO VentaDetalle (cantidad, precioUnitario, subtotal, Venta_idVenta, producto_idProducto) VALUES ?',
+                [valores],
+                (err2) => {
+                    if (err2) {
+                        console.error('❌ Error insertando VentaDetalle:', err2);
+                        return res.status(500).json({ error: err2.message });
+                    }
+
+                    // 3. Insertar en tabla pago
+                    const referencia = 'PAY-' + Date.now();
+                    conexion.query(
+                        'INSERT INTO pago (Venta_idVenta, metodoPago, referenciaPago, detallePago, estadoPago) VALUES (?, ?, ?, ?, ?)',
+                        [idVenta, metodoPago, referencia, detallePago || null, 'aprobado'],
+                        (err3) => {
+                            if (err3) {
+                                console.error('❌ Error insertando pago:', err3);
+                                return res.status(500).json({ error: err3.message });
+                            }
+
+                            res.status(201).json({
+                                message: 'Venta y pago registrados correctamente',
+                                idVenta,
+                                referencia
+                            });
+                        }
+                    );
+                }
+            );
+        }
+    );
+});
+
+// ─── Historial de ventas de un usuario ────────────────────────────────────────
+app.get('/ventas/:idUsuario', (req, res) => {
+    const { idUsuario } = req.params;
+
+    conexion.query(
+        `SELECT v.idVenta, v.Fecha, v.total, v.Estado,
+                vd.cantidad, vd.precioUnitario, vd.subtotal,
+                p.nombre AS producto,
+                pg.metodoPago, pg.referenciaPago, pg.estadoPago
+         FROM Venta v
+         JOIN VentaDetalle vd ON v.idVenta = vd.Venta_idVenta
+         JOIN producto p ON vd.producto_idProducto = p.idProducto
+         LEFT JOIN pago pg ON v.idVenta = pg.Venta_idVenta
+         WHERE v.idUsuario = ?
+         ORDER BY v.Fecha DESC`,
+        [idUsuario],
+        (err, results) => {
+            if (err) {
+                console.error('❌ Error GET /ventas:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json(results);
+        }
+    );
+});
+// Configuración de multer para guardar imágenes
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const carpeta = './uploads/solicitudes';
+        if (!fs.existsSync(carpeta)) fs.mkdirSync(carpeta, { recursive: true });
+        cb(null, carpeta);
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `solicitud_${Date.now()}${ext}`);
+    }
+});
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+        const tiposValidos = ['image/jpeg', 'image/png', 'image/webp'];
+        if (tiposValidos.includes(file.mimetype)) cb(null, true);
+        else cb(new Error('Tipo de archivo no permitido'));
+    }
+});
+
+// Ruta para servir las imágenes subidas
+app.use('/uploads', express.static('uploads'));
+
+// Solicitud del cliente (mantenimiento o venta)
+app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
+    const { tipo, nombreArticulo, descripcion, urgencia, estadoArticulo, precioEstimado } = req.body;
+    const imagenUrl = req.file ? `/uploads/solicitudes/${req.file.filename}` : null;
+
+    if (!tipo || !nombreArticulo || !descripcion) {
+        return res.status(400).json({ error: 'Faltan datos obligatorios' });
+    }
+
+    // Determinar el TipoDeSolicitud según el tipo
+    const tipoDeSolicitud = tipo === 'mantenimiento' ? 1 : 4;
+
+    const ordenGenerada = Math.floor(Math.random() * 90000) + 10000;
+
+    const query = `
+        INSERT INTO solicitud (
+            idSolicitud, 
+            fecha_registro, 
+            cliente_idCliente, 
+            estado, 
+            TipoDeSolicitud_idDeSolicitud,
+            urgencia
+        )
+        VALUES (?, NOW(), NULL, 'Pendiente', ?, ?)
+    `;
+
+    const urgenciaFinal = tipo === 'mantenimiento' ? (urgencia || 'Media') : 'Media';
+
+    conexion.query(query, [ordenGenerada, tipoDeSolicitud, urgenciaFinal], (err, result) => {
+        if (err) {
+            console.error('❌ Error al crear solicitud cliente:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+
+        // Guardar el detalle en producto_y_solicitud
+        const detalle = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}${estadoArticulo ? ` | Estado: ${estadoArticulo}` : ''}${precioEstimado ? ` | Precio estimado: $${precioEstimado}` : ''}${imagenUrl ? ` | Imagen: ${imagenUrl}` : ''}`;
+
+        conexion.query(
+            `INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
+             VALUES (?, ?, 1, ?)`,
+            [tipo === 'mantenimiento' ? 1 : 2, ordenGenerada, detalle],
+            (errDetalle) => {
+                if (errDetalle) {
+                    console.error('❌ Error al guardar detalle:', errDetalle.message);
+                    return res.status(500).json({ error: errDetalle.message });
+                }
+
+                res.status(201).json({
+                    message: 'Solicitud enviada correctamente',
+                    numeroOrden: ordenGenerada,
+                    tipo,
+                    imagenUrl
+                });
+            }
+        );
+    });
+});
+app.get('/api/reportes/semanal', verificarToken, soloAdmin, (req, res) => {
+    const sql = `
+        SELECT 
+            YEARWEEK(fecha_registro, 1) AS semana,
+            MIN(DATE(fecha_registro)) AS fecha_inicio,
+            MAX(DATE(fecha_registro)) AS fecha_fin,
+            COUNT(*) AS total_solicitudes,
+            IFNULL(SUM(total_estimado), 0) AS suma_total
+        FROM solicitud
+        GROUP BY YEARWEEK(fecha_registro, 1)
+        ORDER BY semana DESC
+    `;
+    conexion.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+app.get('/api/reportes/mensual', verificarToken, soloAdmin, (req, res) => {
+    const sql = `
+        SELECT 
+            DATE_FORMAT(fecha_registro, '%Y-%m') AS mes,
+            COUNT(*) AS total_solicitudes,
+            IFNULL(SUM(total_estimado), 0) AS suma_total
+        FROM solicitud
+        GROUP BY DATE_FORMAT(fecha_registro, '%Y-%m')
+        ORDER BY mes DESC
+    `;
+    conexion.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+app.get('/api/dashboard/comparativo', verificarToken, soloTecnico, (req, res) => {
+    const sql = `
+        SELECT 
+            DATE(fecha_registro) AS fecha,
+            COUNT(*) AS total_solicitudes,
+            IFNULL(SUM(total_estimado), 0) AS suma_total
+        FROM solicitud
+        WHERE DATE(fecha_registro) IN (CURDATE(), CURDATE() - INTERVAL 1 DAY)
+        GROUP BY DATE(fecha_registro)
+    `;
+    conexion.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
 });
 
 app.listen(PUERTO, () => {

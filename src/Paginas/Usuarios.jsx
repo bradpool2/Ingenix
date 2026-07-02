@@ -3,6 +3,7 @@ import UserManagement from './Usarios_Crud';
 import Catalog from './Productos_Crud';
 import ReporteFinanciero from '../Paginas/ReportesFinancieros';
 import '../CSS/AdminPanel.css';
+
 import { FaBoxesStacked } from "react-icons/fa6";
 import { FaHouseUser } from "react-icons/fa";
 import { FaUsersGear } from "react-icons/fa6";
