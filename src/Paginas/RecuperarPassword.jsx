@@ -97,7 +97,7 @@ export default function RecuperarPassword() {
                     textAlign:"center"
                 }}>
 
-                    <Link to="/">
+                    <Link to="/login">
 
                         <FaArrowLeft/>
 
