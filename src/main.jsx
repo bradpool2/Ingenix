@@ -10,8 +10,10 @@ import Perfil from './Paginas/Perfil'
 import Usuarios from './Paginas/Usuarios'
 import Catalogo from "./Paginas/Catalogo";
 import Register from './Paginas/Register'
-import Carrito_compra from "./Paginas/Carrito_compra";
 import Home_invited from './Paginas/Home_invited'
+import Carrito_compra from "./Paginas/Carrito_compra";
+import RestablecerPassword from "./Paginas/RestablecerPassword";
+import RecuperarPassword from "./Paginas/RecuperarPassword";
 import Panel_Solicitud from './Paginas/PanelSolicitudes'
 import SolicitudCliente from './Paginas/SolicitudCliente'
 import Solicitud from './Paginas/SolicitudMantenimiento'
@@ -46,6 +48,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/Catalogo" element={<Catalogo />} />
         <Route path="/Carrito_compra" element={<Carrito_compra />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/restablecer-password/:token" element={<RestablecerPassword />}/>
+        <Route path="/recuperar-password" element={<RecuperarPassword/>}/>
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

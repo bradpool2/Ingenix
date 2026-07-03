@@ -7,12 +7,21 @@ import 'dotenv/config';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import nodemailer from 'nodemailer';
+import crypto from 'crypto'
 import conexion from './Backend/config/db.js';
 import { verificarToken, soloAdmin, soloTecnico } from './Backend/Middleware/Auth.js';
 import rutasSolicitudes from './Backend/Routes/solicitudes.js';
 
 const app = express();
 const PUERTO = 3000;
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -83,8 +92,173 @@ app.post('/login', (req, res) => {
         }
     );
 });
+app.post('/recuperar-password', (req, res) => {
 
+    const { correo } = req.body;
 
+    conexion.query(
+        'SELECT * FROM usuario WHERE correo = ?',
+        [correo],
+        async (err, results) => {
+
+            if (err)
+                return res.status(500).json({ message: 'Error del servidor' });
+
+            if (results.length === 0)
+                return res.json({
+                    message: 'No existe una cuenta con ese correo.'
+                });
+
+            const token = crypto.randomBytes(32).toString('hex');
+
+            const expiracion = new Date(
+                Date.now() + 15 * 60 * 1000
+            );
+
+            conexion.query(
+                `UPDATE usuario
+                 SET token_recuperacion = ?,
+                     expiracion_token = ?
+                 WHERE correo = ?`,
+                [token, expiracion, correo]
+            );
+
+            const enlace =
+                `http://localhost:5173/restablecer-password/${token}`;
+
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: correo,
+                subject: 'Recuperación de contraseña - Ingenix',
+                html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:30px;background:#f8fbfb;border-radius:12px;border:1px solid #ddd;">
+                
+                    <h1 style="color:#99c1bb;text-align:center;">
+                        INGENIX
+                    </h1>
+                
+                    <h2 style="text-align:center;color:#292814;">
+                        Recuperación de contraseña
+                    </h2>
+                
+                    <p style="font-size:15px;color:#555;">
+                        Hola,
+                    </p>
+                
+                    <p style="font-size:15px;color:#555;">
+                        Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.
+                    </p>
+                
+                    <div style="text-align:center;margin:35px 0;">
+                
+                        <a
+                        href="${enlace}"
+                        style="
+                            background:#99c1bb;
+                            color:white;
+                            text-decoration:none;
+                            padding:15px 30px;
+                            border-radius:8px;
+                            font-weight:bold;
+                            display:inline-block;
+                        ">
+                
+                            Restablecer contraseña
+                
+                        </a>
+                
+                    </div>
+                
+                    <p style="font-size:13px;color:#777;">
+                        Este enlace será válido durante <strong>15 minutos</strong>.
+                    </p>
+                
+                    <p style="font-size:13px;color:#777;">
+                        Si tú no solicitaste este cambio, puedes ignorar este correo.
+                    </p>
+                
+                    <hr>
+                
+                    <p style="font-size:12px;color:#999;text-align:center;">
+                        © Ingenix - Sistema de gestión para relojería
+                    </p>
+                
+                </div>
+                `
+            });
+
+            res.json({
+                message: 'Se envió un correo de recuperación.'
+            });
+
+        }
+    );
+});
+app.post('/restablecer-password', async (req, res) => {
+
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+        return res.status(400).json({
+            message: 'Datos incompletos.'
+        });
+    }
+
+    conexion.query(
+
+        `SELECT *
+         FROM usuario
+         WHERE token_recuperacion = ?
+         AND expiracion_token > NOW()`,
+
+        [token],
+
+        async (err, results) => {
+
+            if (err)
+                return res.status(500).json({
+                    message: 'Error del servidor.'
+                });
+
+            if (results.length === 0)
+                return res.status(400).json({
+                    message: 'El enlace ya expiró o no es válido.'
+                });
+
+            const usuario = results[0];
+
+            const nuevaPassword = await bcrypt.hash(password,10);
+
+            conexion.query(
+
+                `UPDATE usuario
+                 SET pass=?,
+                     token_recuperacion=NULL,
+                     expiracion_token=NULL
+                 WHERE idUsuario=?`,
+
+                [nuevaPassword, usuario.idUsuario],
+
+                (err2)=>{
+
+                    if(err2)
+                        return res.status(500).json({
+                            message:"Error al actualizar."
+                        });
+
+                    res.json({
+                        message:"Contraseña actualizada correctamente."
+                    });
+
+                }
+
+            );
+
+        }
+
+    );
+
+});
 app.post('/usuarios/registro', async (req, res) => {
     const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
 
@@ -328,7 +502,7 @@ app.put('/productos/:id/categorias', (req, res) => {
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-app.get('/api/dashboard/estadisticas', verificarToken, soloTecnico, (req, res) => {
+app.get('/api/dashboard/estadisticas', (req, res) => {
     conexion.query(
         `SELECT COUNT(*) as total_solicitudes, IFNULL(SUM(total_estimado), 0) as suma_total
          FROM solicitud WHERE DATE(fecha_registro) = CURDATE()`,
@@ -344,10 +518,15 @@ app.get('/api/dashboard/estadisticas', verificarToken, soloTecnico, (req, res) =
     );
 });
 
-app.get('/api/dashboard/ultimas-solicitudes', verificarToken, soloTecnico, (req, res) => {
+app.get('/api/dashboard/ultimas-solicitudes', (req, res) => {
     conexion.query(
-        `SELECT idSolicitud, DATE_FORMAT(fecha_registro, '%d/%m/%Y') AS fecha, total_estimado 
-         FROM solicitud ORDER BY fecha_registro DESC LIMIT 5`,
+    `SELECT  idSolicitud,
+    DATE_FORMAT(fecha_registro, '%d/%m/%Y %H:%i') AS fecha,
+    total_estimado
+    FROM solicitud
+    WHERE DATE(fecha_registro) = CURDATE()
+    ORDER BY fecha_registro DESC
+    LIMIT 5;`,
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json(results);

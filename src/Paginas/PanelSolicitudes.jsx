@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import NavBar from '../components/NavBar';
-import DashboardBienvenida from './DashboardBienvenida'; // Importamos el diseño del Dashboard
+import DashboardBienvenida from './DashboardBienvenida'; 
 import '../CSS/PanelSol.css';
 
 const PanelSolicitudes = () => {
@@ -21,6 +21,9 @@ const PanelSolicitudes = () => {
         <h2>Panel de Gestión</h2>
         <ul>
           <li>
+          <li>
+  <Link to="/panel_solicitud" className="link-estadisticas">Estadísticas</Link>
+</li>
             <Link to="mantenimiento">Solicitud Mantenimiento</Link>
           </li>
           

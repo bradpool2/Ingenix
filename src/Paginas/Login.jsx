@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, Outlet, useLocation  } from 'react-router-dom';
 
 function Login() {
   const navigate = useNavigate();
@@ -70,7 +70,7 @@ function Login() {
           <button onClick={validar} disabled={loading}>
             {loading ? 'Verificando...' : 'Iniciar Sesión'}
           </button>
-          <p className="recuperar">¿Olvidaste tu contraseña?</p>
+          <Link to="/recuperar-password" className="recuperar"> Olvidé mi contraseña</Link>
         </div>
       </div>
     </div>

@@ -219,12 +219,14 @@ export default function SolicitudEntrega() {
             Devolver al técnico
           </button>
         )}
-        {rol === 'admin' && !['Entregado', 'Cancelado'].includes(solicitud.estado) && (
+        {rol === 'admin' &&
+ solicitud.estado === 'Pendiente' &&
+ !solicitud.tecnico_asignado && (
   <button
     className="btn-cambiar-estado"
     onClick={() => {
       setModalAsignar(solicitud);
-      setTecnicoElegido(solicitud.tecnico_asignado || '');
+      setTecnicoElegido('');
       setUrgenciaElegida(solicitud.urgencia || 'Media');
     }}
   >

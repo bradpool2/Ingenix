@@ -32,7 +32,6 @@ export default function DashboardBienvenida() {
   if (cargando) {
     return <div style={{ padding: '20px', color: '#666' }}>Cargando estadísticas del taller...</div>;
   }
-
   const tarjetasEstadisticas = [
     { id: 1, titulo: "Mantenimientos", total: stats.mantenimientos, icono: <BiWrench />, clase: "tarjeta-azul" },
     { id: 2, titulo: "Entregas Pendientes", total: stats.entregas, icono: <BiPackage />, clase: "tarjeta-amarilla" },
