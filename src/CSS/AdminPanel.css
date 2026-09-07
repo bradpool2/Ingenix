@@ -98,6 +98,67 @@
   width: 100%;
 }
 
+.notificaciones-admin {
+  max-width: 850px;
+}
+
+.notificaciones-admin-header h2 {
+  margin: 0 0 6px;
+  color: var(--color-texto);
+}
+
+.notificaciones-admin-header p {
+  margin: 0 0 18px;
+  color: var(--color-texto-secundario);
+}
+
+.form-crear-notificacion {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid rgba(153,193,187,.3);
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 12px 30px rgba(41,40,20,.08);
+}
+
+.form-crear-notificacion textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--color-secundario);
+  border-radius: 8px;
+  resize: vertical;
+  font: inherit;
+}
+
+.form-crear-notificacion textarea:focus {
+  outline: none;
+  border-color: var(--color-principal);
+  box-shadow: 0 0 0 4px rgba(153,193,187,.25);
+}
+
+.notificacion-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-texto);
+  font-size: 13px;
+}
+
+.notificacion-estado {
+  margin: 0;
+  font-size: 13px;
+}
+
+.notificacion-estado.exito {
+  color: #28745f;
+}
+
+.notificacion-estado.error {
+  color: #a33e3e;
+}
+
 /* ---------------- HOME GRID ---------------- */
 
 .home-grid {

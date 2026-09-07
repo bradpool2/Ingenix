@@ -19,7 +19,7 @@ export default function DashboardBienvenida() {
         setStats(dataStats);
       }
       if (!dataLista.error) {
-        setUltimasSolicitudes(dataLista);
+        setUltimasSolicitudes(Array.isArray(dataLista) ? dataLista : []);
       }
       setCargando(false);
     })
@@ -67,8 +67,9 @@ export default function DashboardBienvenida() {
         <table className="tabla-dashboard">
           <thead>
             <tr>
-              <th>ID Solicitud</th>
+              <th>Número de orden</th>
               <th>Tipo de Gestión</th>
+              <th>Estado</th>
               <th>Fecha Registro</th>
               <th>Valor Estimado</th>
             </tr>
@@ -76,17 +77,18 @@ export default function DashboardBienvenida() {
           <tbody>
             {ultimasSolicitudes.length === 0 ? (
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center', color: '#888' }}>No hay solicitudes registradas aún.</td>
+                <td colSpan="5" style={{ textAlign: 'center', color: '#888' }}>No hay solicitudes registradas aún.</td>
               </tr>
             ) : (
               ultimasSolicitudes.map((sol) => (
                 <tr key={sol.idSolicitud}>
-                  <td className="id-resaltado">#{sol.idSolicitud}</td>
-                  <td>Mantenimiento</td>
+                  <td className="id-resaltado">#{sol.numeroOrden || sol.idSolicitud}</td>
+                  <td>{sol.tipo || 'Mantenimiento'}</td>
+                  <td><span className="badge-estado">{sol.estado || 'Pendiente'}</span></td>
                   <td>{sol.fecha}</td>
                   <td>
                     <span className="badge-estado completado">
-                      ${Number(sol.total_estimado).toLocaleString('es-CO')} COP
+                      ${Number(sol.totalEstimado ?? sol.total_estimado ?? 0).toLocaleString('es-CO')} COP
                     </span>
                   </td>
                 </tr>

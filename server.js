@@ -9,12 +9,37 @@ import path from 'path';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto'
+import swaggerUi from 'swagger-ui-express';
 import conexion from './Backend/config/db.js';
 import { verificarToken, soloAdmin, soloTecnico } from './Backend/Middleware/Auth.js';
 import rutasSolicitudes from './Backend/Routes/solicitudes.js';
+import rutasNotificaciones from './Backend/Routes/notificaciones.js';
+import { crearNotificacion } from './Backend/Services/notificaciones.js';
+import openapi from './Backend/docs/openapi.js';
 
 const app = express();
 const PUERTO = 3000;
+
+const obtenerOcrearCliente = (usuario) => new Promise((resolve, reject) => {
+    conexion.query(
+        'SELECT idcliente FROM cliente WHERE usuario_idusuario = ?',
+        [usuario.id],
+        (buscarError, clientes) => {
+            if (buscarError) return reject(buscarError);
+            if (clientes[0]?.idcliente) return resolve(clientes[0].idcliente);
+
+            conexion.query(
+                `INSERT INTO cliente (documento, direccion, telefono, usuario_idusuario)
+                 VALUES (?, ?, ?, ?)`,
+                [usuario.documento || null, usuario.direccion || null, usuario.telefono || null, usuario.id],
+                (crearError, resultado) => {
+                    if (crearError) return reject(crearError);
+                    resolve(resultado.insertId);
+                }
+            );
+        }
+    );
+});
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -26,7 +51,13 @@ const transporter = nodemailer.createTransport({
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
+app.get('/api-docs.json', (req, res) => res.json(openapi));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapi, {
+    customSiteTitle: 'Ingenix API - Swagger',
+    swaggerOptions: { persistAuthorization: true },
+}));
 app.use(rutasSolicitudes);
+app.use(rutasNotificaciones);
 
 // ─── Multer (imágenes) ────────────────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -65,9 +96,18 @@ app.post('/login', (req, res) => {
     }
 
     conexion.query(
-        `SELECT u.*, r.nombreRol AS rol
+        `SELECT
+             u.idusuario AS "idUsuario",
+             u.nombre,
+             u.correo,
+             u.documento,
+             u.direccion,
+             u.telefono,
+             u.pass,
+             u.rol_idrol AS "rol_idRol",
+             r.nombrerol AS rol
          FROM usuario u
-         JOIN rol r ON u.rol_idRol = r.idRol
+         JOIN rol r ON u.rol_idrol = r.idrol
          WHERE u.correo = ?`,
         [correo],
         async (err, results) => {
@@ -82,8 +122,12 @@ app.post('/login', (req, res) => {
                 return res.status(401).json({ message: 'Credenciales inválidas' });
             }
 
+            const rolNormalizado = usuario.rol?.toLowerCase()
+                .replace('administrador', 'admin')
+                .replace('técnico', 'tecnico');
+            usuario.rol = rolNormalizado;
             const token = jwt.sign(
-                { id: usuario.idUsuario, nombre: usuario.nombre, rol: usuario.rol },
+                { id: usuario.idUsuario, nombre: usuario.nombre, rol: rolNormalizado },
                 process.env.JWT_SECRET || 'clave_secreta_temporal',
                 { expiresIn: '2h' }
             );
@@ -260,7 +304,7 @@ app.post('/restablecer-password', async (req, res) => {
 
 });
 app.post('/usuarios/registro', async (req, res) => {
-    const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
+    const { nombre, correo, documento, direccion, telefono, pass, rol_idRol } = req.body;
 
     if (!nombre || !correo || !documento || !pass) {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
@@ -271,14 +315,20 @@ app.post('/usuarios/registro', async (req, res) => {
         const passEncriptada = await bcrypt.hash(pass, saltos);
 
         conexion.query(
-            'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?)',
-            [nombre, correo, documento, direccion, passEncriptada, rol_idRol || 4],
+            'INSERT INTO usuario (nombre, correo, documento, direccion, telefono, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [nombre, correo, documento, direccion, telefono, passEncriptada, rol_idRol || 4],
             (err, results) => {
                 if (err) {
                     console.error('❌ Error POST /usuarios/registro:', err);
                     return res.status(500).json({ error: err.message });
                 }
-                res.status(201).json({ message: 'Usuario registrado con éxito', idUsuario: results.insertId });
+                const idUsuario = results.insertId;
+                const crearPerfil = Number(rol_idRol || 4) === 3
+                    ? obtenerOcrearCliente({ id: idUsuario, documento, direccion, telefono })
+                    : Promise.resolve();
+                crearPerfil
+                    .then(() => res.status(201).json({ message: 'Usuario registrado con éxito', idUsuario }))
+                    .catch((perfilError) => res.status(500).json({ error: perfilError.message }));
             }
         );
     } catch (error) {
@@ -308,9 +358,10 @@ app.get('/usuario', (req, res) => {
 // ─── Usuarios (protegidas) ────────────────────────────────────────────────────
 app.get('/usuarios', verificarToken, soloAdmin, (req, res) => {
     conexion.query(
-        `SELECT u.idUsuario, u.nombre, u.correo, u.documento, u.direccion, u.rol_idRol, r.nombreRol AS rol 
+        `SELECT u.idusuario AS "idUsuario", u.nombre, u.correo, u.documento, u.direccion,
+                u.telefono, u.rol_idrol AS "rol_idRol", r.nombrerol AS rol
          FROM usuario u 
-         LEFT JOIN rol r ON u.rol_idRol = r.idRol`,
+         LEFT JOIN rol r ON u.rol_idrol = r.idrol`,
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json(results);
@@ -319,7 +370,7 @@ app.get('/usuarios', verificarToken, soloAdmin, (req, res) => {
 });
 
 app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
-    const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
+    const { nombre, correo, documento, direccion, telefono, pass, rol_idRol } = req.body;
 
     if (!nombre || !correo || !documento || !pass) {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
@@ -330,11 +381,17 @@ app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
         const passEncriptada = await bcrypt.hash(pass, saltos);
 
         conexion.query(
-            'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?)',
-            [nombre, correo, documento, direccion, passEncriptada, rol_idRol || 1],
+            'INSERT INTO usuario (nombre, correo, documento, direccion, telefono, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [nombre, correo, documento, direccion, telefono, passEncriptada, rol_idRol || 1],
             (err, results) => {
                 if (err) return res.status(500).json({ error: err.message });
-                res.status(201).json({ message: 'Usuario creado con éxito', idUsuario: results.insertId });
+                const idUsuario = results.insertId;
+                const crearPerfil = Number(rol_idRol || 1) === 3
+                    ? obtenerOcrearCliente({ id: idUsuario, documento, direccion, telefono })
+                    : Promise.resolve();
+                crearPerfil
+                    .then(() => res.status(201).json({ message: 'Usuario creado con éxito', idUsuario }))
+                    .catch((perfilError) => res.status(500).json({ error: perfilError.message }));
             }
         );
     } catch (error) {
@@ -345,23 +402,55 @@ app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
 app.put('/usuarios/:id', verificarToken, (req, res) => {
     const { id } = req.params;
     const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
+    if (!id || !nombre?.trim() || !correo?.trim()) {
+        return res.status(400).json({ message: 'ID, nombre y correo son obligatorios.' });
+    }
+    if (!/^\d{10}$/.test(String(telefono || ''))) {
+        return res.status(400).json({ message: 'El teléfono debe tener exactamente 10 dígitos.' });
+    }
 
     conexion.query(
-        'UPDATE usuario SET nombre = ?, correo = ?, documento = ?, direccion = ?, telefono = ?, rol_idRol = ? WHERE idUsuario = ?',
-        [nombre, correo, documento, direccion, telefono, rol_idRol, id],
+        `UPDATE usuario
+         SET nombre = ?, correo = ?, documento = ?, direccion = ?, telefono = ?,
+             rol_idrol = COALESCE(?, rol_idrol)
+         WHERE idusuario = ?`,
+        [nombre, correo, documento, direccion, telefono, rol_idRol || null, id],
         (err) => {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({ message: 'Usuario actualizado con éxito' });
+            conexion.query(
+                `INSERT INTO cliente (documento, direccion, telefono, usuario_idusuario)
+                 SELECT documento, direccion, telefono, idusuario
+                 FROM usuario
+                 WHERE idusuario = ? AND rol_idrol = 3
+                   AND NOT EXISTS (
+                     SELECT 1 FROM cliente WHERE usuario_idusuario = ?
+                   )`,
+                [id, id],
+                (crearPerfilError) => {
+                    if (crearPerfilError) return res.status(500).json({ error: crearPerfilError.message });
+                    conexion.query(
+                        'UPDATE cliente SET telefono = ?, direccion = ?, documento = ? WHERE usuario_idusuario = ?',
+                        [telefono, direccion, documento, id],
+                        (perfilError) => {
+                            if (perfilError) return res.status(500).json({ error: perfilError.message });
+                            res.json({
+                                message: 'Usuario actualizado con éxito',
+                                usuario: { idUsuario: Number(id), nombre, correo, documento, direccion, telefono, rol_idRol },
+                            });
+                        }
+                    );
+                }
+            );
         }
     );
 });
 
 app.get('/usuarios/tecnicos', verificarToken, soloAdmin, (req, res) => {
     conexion.query(
-        `SELECT u.idUsuario, u.nombre 
+        `SELECT u.idusuario AS "idUsuario", u.nombre 
          FROM usuario u 
-         JOIN rol r ON u.rol_idRol = r.idRol 
-         WHERE r.nombreRol = 'tecnico'`,
+         JOIN rol r ON u.rol_idrol = r.idrol 
+         WHERE LOWER(r.nombrerol) = 'tecnico'`,
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json(results);
@@ -504,14 +593,18 @@ app.put('/productos/:id/categorias', (req, res) => {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 app.get('/api/dashboard/estadisticas', (req, res) => {
     conexion.query(
-        `SELECT COUNT(*) as total_solicitudes, IFNULL(SUM(total_estimado), 0) as suma_total
-         FROM solicitud WHERE DATE(fecha_registro) = CURDATE()`,
+        `SELECT
+           COUNT(*) FILTER (WHERE estado NOT IN ('Entregado', 'Cancelado')) AS solicitudes_activas,
+           COUNT(*) FILTER (WHERE estado IN ('Aprobado', 'Terminado')) AS entregas_pendientes,
+           COALESCE(SUM(total_estimado) FILTER (WHERE estado NOT IN ('Cancelado')), 0) AS suma_total,
+           COUNT(*) FILTER (WHERE tipodesolicitud_iddesolicitud = 1) AS mantenimientos
+         FROM solicitud`,
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             const datos = results[0];
             res.json({
-                mantenimientos: `${datos.total_solicitudes} Activos`,
-                entregas: 'Pendientes',
+                mantenimientos: `${datos.mantenimientos || 0} Activos`,
+                entregas: `${datos.entregas_pendientes || 0} Órdenes`,
                 totalEstimado: `${Number(datos.suma_total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`
             });
         }
@@ -520,7 +613,10 @@ app.get('/api/dashboard/estadisticas', (req, res) => {
 
 app.get('/api/dashboard/ultimas-solicitudes', (req, res) => {
     conexion.query(
-    `SELECT  idSolicitud,
+    `SELECT  idsolicitud AS "idSolicitud",
+     numeroorden AS "numeroOrden",
+     estado,
+     CASE WHEN tipodesolicitud_iddesolicitud = 4 THEN 'Venta' ELSE 'Mantenimiento' END AS tipo,
     DATE_FORMAT(fecha_registro, '%d/%m/%Y %H:%i') AS fecha,
     total_estimado
     FROM solicitud
@@ -594,12 +690,15 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
     const urgenciaFinal = tipo === 'mantenimiento' ? (urgencia || 'Media') : 'Media';
     const ordenGenerada = Math.floor(Math.random() * 90000) + 10000;
 
-    conexion.query(
-        `INSERT INTO solicitud (idSolicitud, fecha_registro, cliente_idCliente, estado, TipoDeSolicitud_idDeSolicitud, urgencia)
-         VALUES (?, NOW(), NULL, 'Pendiente', ?, ?)`,
-        [ordenGenerada, tipoDeSolicitud, urgenciaFinal],
-        (err) => {
+    obtenerOcrearCliente(req.usuario)
+        .then((clienteId) => {
+            conexion.query(
+        `INSERT INTO solicitud (numeroOrden, fecha_registro, cliente_idCliente, estado, TipoDeSolicitud_idDeSolicitud, urgencia)
+         VALUES (?, NOW(), ?, 'Pendiente', ?, ?)`,
+        [`SOL-${ordenGenerada}`, clienteId, tipoDeSolicitud, urgenciaFinal],
+        (err, resultadoSolicitud) => {
             if (err) return res.status(500).json({ error: err.message });
+            const idSolicitud = resultadoSolicitud.insertId;
 
             const detalle = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}` +
                 `${estadoArticulo ? ` | Estado: ${estadoArticulo}` : ''}` +
@@ -607,16 +706,56 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
                 `${imagenUrl ? ` | Imagen: ${imagenUrl}` : ''}`;
 
             conexion.query(
-                `INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
-                 VALUES (?, ?, 1, ?)`,
-                [tipo === 'mantenimiento' ? 1 : 2, ordenGenerada, detalle],
+                `INSERT INTO detalle_solicitud
+                 (solicitud_idSolicitud, nombreArticulo, descripcion, estadoArticulo, precioEstimado, imagen)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [idSolicitud, nombreArticulo, descripcion, estadoArticulo || null,
+                 precioEstimado ? Number(precioEstimado) : null, imagenUrl],
                 (errDetalle) => {
                     if (errDetalle) return res.status(500).json({ error: errDetalle.message });
-                    res.status(201).json({ message: 'Solicitud enviada correctamente', numeroOrden: ordenGenerada, tipo, imagenUrl });
+                    Promise.all([
+                       crearNotificacion({
+                           titulo: 'Nueva solicitud recibida',
+                           mensaje: `La solicitud ${ordenGenerada} requiere revisión.`,
+                           tipo: 'sistema',
+                           rolDestino: 'admin',
+                           idSolicitud,
+                           prioridad: urgenciaFinal === 'Alta' ? 'alta' : 'normal',
+                           requiereAccion: true,
+                       }),
+                       crearNotificacion({
+                           titulo: 'Nueva solicitud disponible',
+                           mensaje: `La solicitud ${ordenGenerada} está pendiente de asignación.`,
+                           tipo: 'sistema',
+                           rolDestino: 'tecnico',
+                           idSolicitud,
+                           prioridad: urgenciaFinal === 'Alta' ? 'alta' : 'normal',
+                           requiereAccion: true,
+                       }),
+                    ])
+                       .then(() => res.status(201).json({
+                           message: 'Solicitud enviada correctamente',
+                           idSolicitud,
+                           numeroOrden: `SOL-${ordenGenerada}`,
+                           tipo,
+                           imagenUrl,
+                       }))
+                       .catch((notificationError) => {
+                           console.error('❌ Solicitud creada, pero falló la notificación:', notificationError.message);
+                           res.status(201).json({
+                               message: 'Solicitud creada, pero no se pudo enviar la notificación interna.',
+                               numeroOrden: ordenGenerada,
+                               tipo,
+                               imagenUrl,
+                               advertencia: true,
+                           });
+                       });
                 }
             );
         }
-    );
+            );
+        })
+        .catch((clienteError) => res.status(500).json({ error: clienteError.message }));
 });
 
 // ─── Ventas (carrito) ─────────────────────────────────────────────────────────
@@ -678,6 +817,27 @@ app.get('/ventas/:idUsuario', verificarToken, (req, res) => {
     );
 });
 
+const ejecutarAlmacenadoProgramado = () => {
+    conexion.query(
+        `UPDATE solicitud
+         SET estado = 'Almacenado'
+         WHERE tipodesolicitud_iddesolicitud = 1
+           AND estado = 'Aprobado'
+           AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'`,
+        (error, resultado) => {
+            if (error) {
+                console.error('❌ Error en el archivado automático:', error.message);
+                return;
+            }
+            if (resultado.affectedRows > 0) {
+                console.log(`📦 Archivado automático: ${resultado.affectedRows} solicitud(es).`);
+            }
+        }
+    );
+};
+
 app.listen(PUERTO, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
+    ejecutarAlmacenadoProgramado();
+    setInterval(ejecutarAlmacenadoProgramado, 24 * 60 * 60 * 1000);
 });

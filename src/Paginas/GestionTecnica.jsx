@@ -8,10 +8,10 @@ export default function GestionTecnica() {
 
   // Cargar solicitudes al entrar
   const cargarSolicitudes = () => {
-    authFetch('http://localhost:3000/api/tecnico/solicitudes')
+    authFetch('http://localhost:3000/solicitudes')
       .then(res => res.json())
       .then(data => {
-        if (!data.error) setSolicitudes(data);
+        if (!data.error) setSolicitudes(Array.isArray(data) ? data : []);
         setCargando(false);
       })
       .catch(err => console.error("Error:", err));
@@ -23,10 +23,10 @@ export default function GestionTecnica() {
 
   // Función para cambiar el estado desde el frontend
   const cambiarEstado = (id, nuevoEstado) => {
-    authFetch(`http://localhost:3000/api/tecnico/solicitudes/${id}/estado`, {
+    authFetch(`http://localhost:3000/solicitudes/${id}/estado`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nuevoEstado })
+      body: JSON.stringify({ estado: nuevoEstado })
     })
     .then(res => res.json())
     .then(data => {
@@ -50,7 +50,8 @@ export default function GestionTecnica() {
       <table className="tabla-dashboard">
         <thead>
           <tr>
-            <th>ID Orden</th>
+            <th>Número de orden</th>
+            <th>Cliente</th>
             <th>Fecha Ingreso</th>
             <th>Total Estimado</th>
             <th>Estado Actual</th>
@@ -60,9 +61,10 @@ export default function GestionTecnica() {
         <tbody>
           {solicitudes.map((sol) => (
             <tr key={sol.idSolicitud}>
-              <td className="id-resaltado">#{sol.idSolicitud}</td>
-              <td>{sol.fecha}</td>
-              <td>${Number(sol.total_estimado).toLocaleString('es-CO')} COP</td>
+              <td className="id-resaltado">#{sol.numeroOrden || sol.idSolicitud}</td>
+              <td>{sol.clienteNombre || '—'}</td>
+              <td>{sol.fechaRegistro ? new Date(sol.fechaRegistro).toLocaleString('es-CO', { timeZone: 'America/Bogota' }) : sol.fecha || '—'}</td>
+              <td>${Number(sol.totalEstimado ?? sol.total_estimado ?? 0).toLocaleString('es-CO')} COP</td>
               <td>
                 <span className={`badge-estado ${sol.estado.toLowerCase().replace(" ", "-")}`}>
                   {sol.estado}

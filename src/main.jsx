@@ -19,6 +19,8 @@ import SolicitudCliente from './Paginas/SolicitudCliente'
 import Solicitud from './Paginas/SolicitudMantenimiento'
 import SolicitudEntrega from './Paginas/SolicitudEntrega'
 import RutaProtegida from './components/RutaProtegida'
+import GestionSolicitudes from './Paginas/GestionSolicitudes'
+import SolicitudesAlmacenadas from './Paginas/SolicitudesAlmacenadas'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -37,8 +39,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/panel_solicitud" element={<Panel_Solicitud />}>
           <Route path="mantenimiento" element={<Solicitud />} />
           <Route path="Entrega" element={<SolicitudEntrega/>} />
-          <Route path="Venta" element={<div>Vista Solicitud Venta</div>} />
-          <Route path="Almacenado" element={<div>Vista Solicitud Almacenado</div>} />
+          <Route path="Venta" element={<GestionSolicitudes tipo="venta" />} />
+          <Route path="Almacenado" element={<SolicitudesAlmacenadas />} />
         </Route>
 
         <Route path="/solicitud" element={<Navigate to="/panel_solicitud" replace />} />

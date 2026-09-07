@@ -17,13 +17,20 @@ function Register() {
   });
 
   const manejarCambio = (e) => {
+    const valor = e.target.name === "telefono"
+      ? e.target.value.replace(/\D/g, "").slice(0, 10)
+      : e.target.value;
     setDatos({
       ...datos,
-      [e.target.name]: e.target.value,
+      [e.target.name]: valor,
     });
   };
 
   const registrar = async () => {
+    if (!/^\d{10}$/.test(datos.telefono)) {
+      alert("El número de teléfono debe tener exactamente 10 dígitos");
+      return;
+    }
     if (datos.pass !== datos.confirmar) {
       alert("Las contraseñas no coinciden");
       return;
@@ -136,10 +143,14 @@ function Register() {
 
           <label>Teléfono</label>
           <input
-            type="text"
+            type="tel"
             name="telefono"
             value={datos.telefono}
             onChange={manejarCambio}
+            inputMode="numeric"
+            maxLength={10}
+            pattern="[0-9]{10}"
+            required
           />
 
           <label>Contraseña</label>

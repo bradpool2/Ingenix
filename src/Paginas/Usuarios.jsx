@@ -2,16 +2,19 @@ import React, { useState, useEffect } from 'react';
 import UserManagement from './Usarios_Crud';
 import Catalog from './Productos_Crud';
 import ReporteFinanciero from '../Paginas/ReportesFinancieros';
+import NotificacionesAdmin from './NotificacionesAdmin';
 import '../CSS/AdminPanel.css';
 
 import { FaBoxesStacked } from "react-icons/fa6";
 import { FaHouseUser } from "react-icons/fa";
 import { FaUsersGear } from "react-icons/fa6";
 import { FaChartLine } from "react-icons/fa6";
+import { FaBell } from "react-icons/fa";
 
 import { FaRegUser } from "react-icons/fa";
 
 import NavBar from '../components/NavBar'
+import { authFetch } from '../components/api.js';
 
 const admin = { id: 1, nombre: "Admin Principal" };
 
@@ -20,6 +23,7 @@ const VIEWS = {
   users:    { label: 'Gestión de usuarios' },
   products: { label: 'Gestión de productos' },
   reportes: { label: 'Reporte Financiero' },
+  notifications: { label: 'Notificaciones' },
 };
 
 export default function AdminPanel() {
@@ -28,26 +32,27 @@ export default function AdminPanel() {
   const [products, setProducts] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:3000/usuarios").then(r => r.json()).then(setUsers);
-    fetch("http://localhost:3000/productos").then(r => r.json()).then(setProducts);
+    authFetch("http://localhost:3000/usuarios").then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []));
+    authFetch("http://localhost:3000/productos").then(r => r.json()).then(data => setProducts(Array.isArray(data) ? data : []));
   }, []);
 
   const updateUser = async (user) => {
-    const res = await fetch(`http://localhost:3000/usuarios/${user.id}`, {
+    const idUsuario = user.idUsuario ?? user.idusuario;
+    const res = await authFetch(`http://localhost:3000/usuarios/${idUsuario}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(user)
     });
     const updated = await res.json();
-    setUsers(users.map(u => u.id === updated.id ? updated : u));
+    setUsers(users.map(u => (u.idUsuario ?? u.idusuario) === idUsuario ? { ...u, ...updated.usuario } : u));
   };
    const deleteUser = async (id) => {
-    await fetch(`http://localhost:3000/usuarios/${users.id}`, { method: "DELETE" });
-    setUsers(users.filter(u => u.id !== id));
+    await authFetch(`http://localhost:3000/usuarios/${id}`, { method: "DELETE" });
+    setUsers(users.filter(u => (u.idUsuario ?? u.idusuario) !== id));
   };
 
   const addProduct = async (data) => {
-    const res = await fetch("http://localhost:3000/productos", {
+    const res = await authFetch("http://localhost:3000/productos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
@@ -57,8 +62,8 @@ export default function AdminPanel() {
   };
 
   const deleteProduct = async (id) => {
-    await fetch(`http://localhost:3000/productos/${id}`, { method: "DELETE" });
-    setProducts(products.filter(p => p.id !== id));
+    await authFetch(`http://localhost:3000/productos/${id}`, { method: "DELETE" });
+    setProducts(products.filter(p => (p.idProducto ?? p.idproducto) !== id));
   };
 
   return (
@@ -84,6 +89,8 @@ export default function AdminPanel() {
         Productos</button>
         <button className={`nav-item ${view === 'reportes' ? 'active' : ''}`} onClick={() => setView('reportes')}><FaChartLine />
         Reportes</button>
+        <button className={`nav-item ${view === 'notifications' ? 'active' : ''}`} onClick={() => setView('notifications')}><FaBell />
+         Notificaciones</button>
       </aside>
 
       <main className="main-section">
@@ -110,6 +117,7 @@ export default function AdminPanel() {
           {view === 'users'    && <UserManagement users={users} onUpdate={updateUser} onDelete={deleteUser} />}
           {view === 'products' && <Catalog products={products} onAdd={addProduct} onDelete={deleteProduct} />}
           {view === 'reportes' && <ReporteFinanciero />}
+          {view === 'notifications' && <NotificacionesAdmin />}
         </div>
       </main>
 

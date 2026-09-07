@@ -9,6 +9,7 @@ export default function Usuarios_Crud() {
     correo: '',
     documento: '',
     direccion: '',
+    telefono: '',
     pass: '',
     rol_idRol: '1'
   });
@@ -17,7 +18,10 @@ export default function Usuarios_Crud() {
     try {
       const res = await authFetch('http://localhost:3000/usuarios');
       const data = await res.json();
-      setUsers(data);
+      setUsers(Array.isArray(data) ? data.map((u) => ({
+        ...u,
+        idUsuario: u.idUsuario ?? u.idusuario,
+      })) : []);
     } catch (err) {
       console.error(err);
     }
@@ -37,7 +41,7 @@ export default function Usuarios_Crud() {
       });
       if (res.ok) {
         obtenerUsuarios();
-        setNuevoUsuario({ nombre: '', correo: '', documento: '', direccion: '', pass: '', rol_idRol: '1' });
+        setNuevoUsuario({ nombre: '', correo: '', documento: '', direccion: '', telefono: '', pass: '', rol_idRol: '1' });
       }
     } catch (err) {
       console.error(err);
@@ -72,7 +76,9 @@ export default function Usuarios_Crud() {
   };
 
   const handleInputChange = (id, campo, valor) => {
-    setUsers(users.map(u => u.idUsuario === id ? { ...u, [campo]: valor } : u));
+    setUsers((actuales) => actuales.map((u) => (
+      u.idUsuario === id ? { ...u, [campo]: valor } : u
+    )));
   };
 
   return (
@@ -114,6 +120,13 @@ export default function Usuarios_Crud() {
             onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, pass: e.target.value })}
             required
           />
+          <input
+            type="tel"
+            placeholder="Teléfono"
+            value={nuevoUsuario.telefono}
+            onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, telefono: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+            maxLength={10}
+          />
           <select
             value={nuevoUsuario.rol_idRol}
             onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, rol_idRol: e.target.value })}
@@ -141,6 +154,7 @@ export default function Usuarios_Crud() {
                 <th>Correo</th>
                 <th>Documento</th>
                 <th>Dirección</th>
+                <th>Teléfono</th>
                 <th>Rol</th>
                 <th>Acciones</th>
               </tr>
@@ -154,6 +168,14 @@ export default function Usuarios_Crud() {
                       type="text"
                       value={u.nombre || ''}
                       onChange={(e) => handleInputChange(u.idUsuario, 'nombre', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="tel"
+                      value={u.telefono || ''}
+                      onChange={(e) => handleInputChange(u.idUsuario, 'telefono', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      maxLength={10}
                     />
                   </td>
                   <td>

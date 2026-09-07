@@ -19,7 +19,10 @@ export default function Productos_Crud() {
     try {
       const res = await authFetch('http://localhost:3000/productos/con-categorias');
       const data = await res.json();
-      setProducts(data);
+      setProducts(Array.isArray(data) ? data.map((p) => ({
+        ...p,
+        idProducto: p.idProducto ?? p.idproducto,
+      })) : []);
     } catch (err) {
       console.error(err);
     }
@@ -29,7 +32,7 @@ export default function Productos_Crud() {
     try {
       const res = await authFetch('http://localhost:3000/categorias');
       const data = await res.json();
-      setCategorias(data);
+      setCategorias(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     }
@@ -103,7 +106,8 @@ export default function Productos_Crud() {
       if (res.ok) {
         const creado = await res.json();
         if (nuevoProducto.categoriasSeleccionadas.length > 0) {
-          await authFetch(`http://localhost:3000/productos/${creado.idProducto}/categorias`, {
+          const idProducto = creado.idProducto ?? creado.idproducto;
+          await authFetch(`http://localhost:3000/productos/${idProducto}/categorias`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ categorias: nuevoProducto.categoriasSeleccionadas })
@@ -148,7 +152,9 @@ export default function Productos_Crud() {
   };
 
   const handleInputChange = (id, campo, valor) => {
-    setProducts(products.map(p => p.idProducto === id ? { ...p, [campo]: valor } : p));
+    setProducts((actuales) => actuales.map((p) => (
+      p.idProducto === id ? { ...p, [campo]: valor } : p
+    )));
   };
 
   return (

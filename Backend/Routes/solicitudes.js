@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import conexion from '../config/db.js';
+import { crearNotificacion } from '../Services/notificaciones.js';
+import { verificarToken, soloAdmin, soloTecnico } from '../Middleware/Auth.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -116,60 +118,177 @@ router.post('/solicitudes', (req, res) => {
       return res.status(201).json({ message: 'Solicitud guardada correctamente sin servicios' });
     }
 
-    const idProductoAsignado = 22;
-
-    const queryRelacion = `
-      INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
-      VALUES (?, ?, ?, ?)
-    `;
-
-    let completados = 0;
-    let huboError = false;
-
-    services.forEach((servicio) => {
-      conexion.query(
-        queryRelacion,
-        [idProductoAsignado, idSolicitud, 1, servicio.nombre],
-        (errRelacion) => {
-          if (huboError) return;
-          if (errRelacion) {
-            huboError = true;
-            return res.status(500).json({ error: errRelacion.message });
-          }
-          completados++;
-          if (completados === services.length) {
-            res.status(201).json({ message: 'Solicitud guardada correctamente' });
-          }
-        }
-      );
-    });
+    res.status(201).json({ message: 'Solicitud guardada correctamente', idSolicitud });
   });
 });
 
 // Traer todas las solicitudes
-router.get('/solicitudes', (req, res) => {
+router.get('/solicitudes', verificarToken, soloTecnico, (req, res) => {
+  const params = [];
+  const filtroTecnico = req.usuario.rol === 'tecnico'
+    ? 'WHERE s.tecnico_asignado = ?'
+    : '';
+  if (filtroTecnico) params.push(String(req.usuario.id));
   const query = `
     SELECT 
-      s.idSolicitud,
-      s.fecha_registro,
-      s.total_estimado,
+      s.idsolicitud AS "idSolicitud",
+      s.numeroorden AS "numeroOrden",
+      CASE WHEN s.tipodesolicitud_iddesolicitud = 4 THEN 'Venta' ELSE 'Mantenimiento' END AS tipo,
+      s.fecha_registro AS "fechaRegistro",
+      s.total_estimado AS "totalEstimado",
       s.estado,
-      s.nombreTecnico,
-      s.tecnico_asignado,
-      s.observacion_admin,
-      s.cliente_idCliente,
-      GROUP_CONCAT(ps.detalle_servicio SEPARATOR ', ') AS servicios
+      s.urgencia,
+      s.tecnico_asignado AS "tecnicoAsignado",
+      COALESCE(u.nombre, s.tecnico_asignado) AS "tecnicoNombre",
+      s.observacion_admin AS "observacionAdmin",
+      clienteUsuario.nombre AS "clienteNombre",
+      COALESCE(
+        STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
+        STRING_AGG(ps.detalle_servicio, ', ')
+      ) AS servicios
     FROM solicitud s
     LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
-    GROUP BY s.idSolicitud
+    LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
+    LEFT JOIN usuario u ON u.idusuario::text = s.tecnico_asignado::text
+    LEFT JOIN cliente c ON c.idcliente = s.cliente_idcliente
+    LEFT JOIN usuario clienteUsuario ON clienteUsuario.idusuario = c.usuario_idusuario
+    ${filtroTecnico}
+    GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.total_estimado,
+      s.estado, s.urgencia, s.tecnico_asignado, u.nombre, s.observacion_admin,
+      s.cliente_idcliente, clienteUsuario.nombre
     ORDER BY s.fecha_registro DESC
   `;
 
-  conexion.query(query, (err, results) => {
+  conexion.query(query, params, (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(results);
+    res.json(Array.isArray(results) ? results : []);
   });
 });
+
+router.get('/solicitudes/mis-solicitudes', verificarToken, (req, res) => {
+  const query = `
+    SELECT
+      s.idsolicitud AS "idSolicitud",
+      s.numeroorden AS "numeroOrden",
+      s.fecha_registro AS "fechaRegistro",
+      s.estado,
+      s.urgencia,
+      s.total_estimado AS "totalEstimado",
+      COALESCE(STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '), '') AS servicios
+    FROM solicitud s
+    INNER JOIN cliente c ON c.idcliente = s.cliente_idcliente
+    LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
+    WHERE c.usuario_idusuario = ?
+    GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.estado,
+      s.urgencia, s.total_estimado
+    ORDER BY s.fecha_registro DESC
+  `;
+  conexion.query(query, [req.usuario.id], (error, resultados) => {
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(Array.isArray(resultados) ? resultados : []);
+  });
+});
+
+// Solicitudes de mantenimiento archivadas. Solo el personal interno puede consultarlas.
+router.get('/solicitudes/almacenado', verificarToken, soloTecnico, (req, res) => {
+  const query = `
+    SELECT
+      s.idsolicitud AS "idSolicitud",
+      s.numeroorden AS "numeroOrden",
+      s.fecha_registro AS "fechaRegistro",
+      s.estado,
+      s.urgencia,
+      s.total_estimado AS "totalEstimado",
+      clienteUsuario.nombre AS "clienteNombre",
+      COALESCE(
+        STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
+        STRING_AGG(ps.detalle_servicio, ', ')
+      ) AS servicios
+    FROM solicitud s
+    LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
+    LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
+    LEFT JOIN cliente c ON c.idcliente = s.cliente_idcliente
+    LEFT JOIN usuario clienteUsuario ON clienteUsuario.idusuario = c.usuario_idusuario
+    WHERE s.TipoDeSolicitud_idDeSolicitud = 1
+      AND s.estado = 'Almacenado'
+    GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.estado,
+      s.urgencia, s.total_estimado, clienteUsuario.nombre
+    ORDER BY s.fecha_registro DESC
+  `;
+
+  conexion.query(query, (error, resultados) => {
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(resultados);
+  });
+});
+
+// Archiva de forma idempotente los mantenimientos aprobados con más de 30 días.
+// Esta operación está restringida a administradores para evitar cambios de estado no autorizados.
+router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req, res) => {
+  const query = `
+    UPDATE solicitud
+    SET estado = 'Almacenado'
+    WHERE TipoDeSolicitud_idDeSolicitud = 1
+      AND estado = 'Aprobado'
+      AND fecha_registro IS NOT NULL
+      AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'
+    RETURNING idsolicitud AS "idSolicitud", numeroorden AS "numeroOrden",
+      cliente_idcliente AS "clienteId", fecha_registro AS "fechaRegistro"
+  `;
+
+  conexion.query(query, async (error, archivadas) => {
+    if (error) return res.status(500).json({ error: error.message });
+
+    const solicitudes = Array.isArray(archivadas) ? archivadas : [];
+    try {
+      await Promise.all(solicitudes.map(async (solicitud) => {
+        const clientes = await new Promise((resolve, reject) => {
+          conexion.query(
+            `SELECT u.idusuario AS "usuarioId"
+             FROM cliente c
+             INNER JOIN usuario u ON u.idusuario = c.usuario_idusuario
+             WHERE c.idcliente = ?`,
+            [solicitud.clienteId],
+            (clienteError, resultados) => clienteError ? reject(clienteError) : resolve(resultados)
+          );
+        });
+        const usuarioId = clientes[0]?.usuarioId;
+        const notificaciones = [
+          usuarioId && crearNotificacion({
+            titulo: 'Solicitud almacenada',
+            mensaje: `La solicitud ${solicitud.numeroOrden || `#${solicitud.idSolicitud}`} fue almacenada automáticamente después de 30 días.`,
+            tipo: 'sistema',
+            rolDestino: 'cliente',
+            usuarioIds: [usuarioId],
+            idSolicitud: solicitud.idSolicitud,
+          }),
+          crearNotificacion({
+            titulo: 'Solicitud archivada automáticamente',
+            mensaje: `La solicitud ${solicitud.numeroOrden || `#${solicitud.idSolicitud}`} cambió a estado Almacenado.`,
+            tipo: 'sistema',
+            rolDestino: 'admin',
+            idSolicitud: solicitud.idSolicitud,
+          }),
+        ].filter(Boolean);
+        await Promise.all(notificaciones);
+      }));
+      return res.json({
+        message: 'Proceso de almacenado automático completado.',
+        archivadas: solicitudes.length,
+        solicitudes,
+      });
+    } catch (notificationError) {
+      console.error('❌ Solicitudes archivadas, pero falló una notificación:', notificationError.message);
+      return res.status(207).json({
+        message: 'Solicitudes archivadas, pero no se pudieron crear todas las notificaciones.',
+        archivadas: solicitudes.length,
+        solicitudes,
+        advertencia: true,
+      });
+    }
+  });
+});
+
 router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
   const { tipo, cliente_idCliente } = req.body;
  
@@ -234,7 +353,7 @@ router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
       const idSolicitud = resultSolicitud.insertId;
  
       const queryInsertarDetalle = `
-        INSERT INTO detalleSolicitud (
+        INSERT INTO detalle_solicitud (
           solicitud_idSolicitud,
           nombreArticulo,
           descripcion,
@@ -262,11 +381,40 @@ router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
             return res.status(500).json({ error: errDetalle.message });
           }
  
-          return res.status(201).json({
-            message: 'Solicitud enviada correctamente',
-            idSolicitud,
-            numeroOrden,
-          });
+          Promise.all([
+            crearNotificacion({
+              titulo: 'Nueva solicitud recibida',
+              mensaje: `La solicitud ${numeroOrden} requiere revisión.`,
+              tipo: 'sistema',
+              rolDestino: 'admin',
+              idSolicitud,
+              prioridad: urgencia === 'Alta' ? 'alta' : 'normal',
+              requiereAccion: true,
+            }),
+            crearNotificacion({
+              titulo: 'Nueva solicitud disponible',
+              mensaje: `La solicitud ${numeroOrden} está pendiente de asignación.`,
+              tipo: 'sistema',
+              rolDestino: 'tecnico',
+              idSolicitud,
+              prioridad: urgencia === 'Alta' ? 'alta' : 'normal',
+              requiereAccion: true,
+            }),
+          ])
+            .then(() => res.status(201).json({
+              message: 'Solicitud enviada correctamente',
+              idSolicitud,
+              numeroOrden,
+            }))
+            .catch((errorNotificacion) => {
+              console.error('❌ Solicitud creada, pero falló la notificación:', errorNotificacion.message);
+              res.status(201).json({
+                message: 'Solicitud creada, pero no se pudo enviar la notificación interna.',
+                idSolicitud,
+                numeroOrden,
+                advertencia: true,
+              });
+            });
         }
       );
     }
@@ -278,19 +426,30 @@ router.get('/solicitudes/:id', (req, res) => {
   const { id } = req.params;
   const query = `
     SELECT 
-      s.idSolicitud,
-      s.fecha_registro,
-      s.total_estimado,
+      s.idsolicitud AS "idSolicitud",
+      s.numeroorden AS "numeroOrden",
+      s.fecha_registro AS "fechaRegistro",
+      s.total_estimado AS "totalEstimado",
       s.estado,
-      s.nombreTecnico,
-      s.tecnico_asignado,
-      s.observacion_admin,
-      s.cliente_idCliente,
-      GROUP_CONCAT(ps.detalle_servicio SEPARATOR ', ') AS servicios
+      s.urgencia,
+      s.tecnico_asignado AS "tecnicoAsignado",
+      COALESCE(u.nombre, s.tecnico_asignado) AS "tecnicoNombre",
+      clienteUsuario.nombre AS "clienteNombre",
+      s.observacion_admin AS "observacionAdmin",
+      COALESCE(
+        STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
+        STRING_AGG(ps.detalle_servicio, ', ')
+      ) AS servicios
     FROM solicitud s
     LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
-    WHERE s.idSolicitud = ?
-    GROUP BY s.idSolicitud
+    LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
+    LEFT JOIN usuario u ON u.idusuario::text = s.tecnico_asignado::text
+    LEFT JOIN cliente c ON c.idcliente = s.cliente_idcliente
+    LEFT JOIN usuario clienteUsuario ON clienteUsuario.idusuario = c.usuario_idusuario
+    WHERE s.idsolicitud = ?
+    GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.total_estimado,
+      s.estado, s.urgencia, s.tecnico_asignado, u.nombre, s.observacion_admin,
+      clienteUsuario.nombre
   `;
 
   conexion.query(query, [id], (err, results) => {
@@ -301,11 +460,11 @@ router.get('/solicitudes/:id', (req, res) => {
 });
 
 // Cambiar estado
-router.put('/solicitudes/:id/estado', (req, res) => {
+router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) => {
   const { id } = req.params;
   const { estado, tecnico_asignado, observacion_admin } = req.body;
 
-  const estadosValidos = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Cancelado'];
+  const estadosValidos = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Almacenado', 'Cancelado'];
   if (!estadosValidos.includes(estado)) {
     return res.status(400).json({ error: 'Estado no válido' });
   }
@@ -329,7 +488,38 @@ router.put('/solicitudes/:id/estado', (req, res) => {
   conexion.query(query, params, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
-    res.json({ message: 'Estado actualizado correctamente' });
+    conexion.query(
+      `SELECT u.idusuario AS "usuarioId"
+       FROM solicitud s
+       INNER JOIN cliente c ON c.idcliente = s.cliente_idcliente
+       INNER JOIN usuario u ON u.idusuario = c.usuario_idusuario
+       WHERE s.idsolicitud = ?`,
+      [id],
+      (errorCliente, clientes) => {
+        if (errorCliente) return res.status(500).json({ error: errorCliente.message });
+        const usuarioId = clientes[0]?.usuarioId;
+        const avisarCliente = usuarioId
+          ? crearNotificacion({
+            titulo: 'Actualización de tu solicitud',
+            mensaje: `Tu solicitud #${id} ahora está: ${estado}.`,
+            tipo: 'sistema',
+            rolDestino: 'cliente',
+            usuarioIds: [usuarioId],
+            idSolicitud: id,
+          })
+          : Promise.resolve();
+
+        avisarCliente
+          .then(() => res.json({ message: 'Estado actualizado correctamente' }))
+          .catch((notificationError) => {
+            console.error('❌ Estado actualizado, pero falló la notificación:', notificationError.message);
+            res.json({
+              message: 'Estado actualizado correctamente, pero no se pudo notificar al cliente.',
+              advertencia: true,
+            });
+          });
+      }
+    );
   });
 });
 // Reporte financiero — semana / mes / año
@@ -338,16 +528,16 @@ router.get('/reportes/financiero', (req, res) => {
 
   let formatoFecha;
   if (rango === 'semana') {
-    formatoFecha = '%Y-%u'; // año-semana
+    formatoFecha = 'IYYY-IW'; // año-semana ISO
   } else if (rango === 'anio') {
-    formatoFecha = '%Y';
+    formatoFecha = 'YYYY';
   } else {
-    formatoFecha = '%Y-%m'; // mes por defecto
+    formatoFecha = 'YYYY-MM'; // mes por defecto
   }
 
   const query = `
     SELECT 
-      DATE_FORMAT(s.fecha_registro, ?) AS periodo,
+      TO_CHAR(s.fecha_registro, '${formatoFecha}') AS periodo,
       s.TipoDeSolicitud_idDeSolicitud AS tipo,
       SUM(s.total_estimado) AS total
     FROM solicitud s
@@ -356,7 +546,7 @@ router.get('/reportes/financiero', (req, res) => {
     ORDER BY periodo ASC
   `;
 
-  conexion.query(query, [formatoFecha], (err, results) => {
+  conexion.query(query, (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
 
     const datosAgrupados = {};
@@ -365,11 +555,11 @@ router.get('/reportes/financiero', (req, res) => {
       if (!datosAgrupados[row.periodo]) {
         datosAgrupados[row.periodo] = { periodo: row.periodo, mantenimiento: 0, venta: 0 };
       }
-      if (row.tipo === 1) datosAgrupados[row.periodo].mantenimiento = Number(row.total) || 0;
-      if (row.tipo === 4) datosAgrupados[row.periodo].venta = Number(row.total) || 0;
+      if (Number(row.tipo) === 1) datosAgrupados[row.periodo].mantenimiento = Number(row.total) || 0;
+      if (Number(row.tipo) === 4) datosAgrupados[row.periodo].venta = Number(row.total) || 0;
     });
 
-    res.json(Object.values(datosAgrupados));
+    res.json(Array.isArray(results) ? Object.values(datosAgrupados) : []);
   });
 });
 
@@ -390,7 +580,7 @@ router.get('/reportes/financiero/totales', (req, res) => {
 
     const resumen = { mantenimiento: { total: 0, cantidad: 0 }, venta: { total: 0, cantidad: 0 } };
 
-    results.forEach(row => {
+    (Array.isArray(results) ? results : []).forEach(row => {
       if (row.tipo === 1) resumen.mantenimiento = { total: Number(row.total) || 0, cantidad: row.cantidad };
       if (row.tipo === 4) resumen.venta = { total: Number(row.total) || 0, cantidad: row.cantidad };
     });
@@ -438,7 +628,28 @@ router.put('/solicitudes/:id/asignar', (req, res) => {
 
     conexion.query(query, params, (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ message: 'Solicitud asignada correctamente' });
+      const usuarioId = Number(tecnico_asignado);
+      const notificarTecnico = Number.isInteger(usuarioId) && usuarioId > 0
+        ? crearNotificacion({
+          titulo: 'Solicitud asignada',
+          mensaje: `Se te asignó la solicitud #${id}.`,
+          tipo: 'sistema',
+          rolDestino: 'tecnico',
+          usuarioIds: [usuarioId],
+          idSolicitud: id,
+          requiereAccion: true,
+        })
+        : Promise.resolve();
+
+      notificarTecnico
+        .then(() => res.json({ message: 'Solicitud asignada correctamente' }))
+        .catch((notificationError) => {
+          console.error('❌ Solicitud asignada, pero falló la notificación:', notificationError.message);
+          res.json({
+            message: 'Solicitud asignada, pero no se pudo notificar al técnico.',
+            advertencia: true,
+          });
+        });
     });
   });
 });

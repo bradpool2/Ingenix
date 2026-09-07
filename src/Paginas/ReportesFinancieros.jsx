@@ -20,8 +20,19 @@ export default function ReporteFinanciero() {
         authFetch(`http://localhost:3000/reportes/financiero?rango=${rango}`),
         authFetch(`http://localhost:3000/reportes/financiero/totales`)
       ]);
-      setDatos(await resDatos.json());
-      setTotales(await resTotales.json());
+      const datosRespuesta = await resDatos.json();
+      const totalesRespuesta = await resTotales.json();
+      setDatos(Array.isArray(datosRespuesta) ? datosRespuesta : []);
+      setTotales({
+        mantenimiento: {
+          total: Number(totalesRespuesta?.mantenimiento?.total) || 0,
+          cantidad: Number(totalesRespuesta?.mantenimiento?.cantidad) || 0,
+        },
+        venta: {
+          total: Number(totalesRespuesta?.venta?.total) || 0,
+          cantidad: Number(totalesRespuesta?.venta?.cantidad) || 0,
+        },
+      });
     } catch (err) {
       console.error('Error al cargar reporte:', err);
     } finally {
@@ -31,8 +42,11 @@ export default function ReporteFinanciero() {
 
   const fmt = (n) => `$${Number(n).toLocaleString('es-CO')} COP`;
 
-  const totalGeneral = totales.mantenimiento.total + totales.venta.total;
-  const maxValor = Math.max(...datos.map(d => Math.max(d.mantenimiento, d.venta)), 1);
+  const totalGeneral = Number(totales.mantenimiento.total) + Number(totales.venta.total);
+  const maxValor = Math.max(
+    ...datos.map((d) => Math.max(Number(d.mantenimiento) || 0, Number(d.venta) || 0)),
+    1
+  );
 
   const generarPDF = () => {
     const etiquetaRango = rango === 'semana' ? 'Semanal' : rango === 'mes' ? 'Mensual' : 'Anual';
@@ -42,7 +56,7 @@ export default function ReporteFinanciero() {
         <td>${d.periodo}</td>
         <td>${fmt(d.mantenimiento)}</td>
         <td>${fmt(d.venta)}</td>
-        <td><strong>${fmt(d.mantenimiento + d.venta)}</strong></td>
+        <td><strong>${fmt((Number(d.mantenimiento) || 0) + (Number(d.venta) || 0))}</strong></td>
       </tr>
     `).join('');
 
@@ -162,12 +176,12 @@ export default function ReporteFinanciero() {
               <div className="grafica-barras">
                 <div
                   className="barra mantenimiento"
-                  style={{ height: `${(d.mantenimiento / maxValor) * 160}px` }}
+                  style={{ height: `${((Number(d.mantenimiento) || 0) / maxValor) * 160}px` }}
                   title={fmt(d.mantenimiento)}
                 />
                 <div
                   className="barra venta"
-                  style={{ height: `${(d.venta / maxValor) * 160}px` }}
+                  style={{ height: `${((Number(d.venta) || 0) / maxValor) * 160}px` }}
                   title={fmt(d.venta)}
                 />
               </div>
@@ -192,12 +206,14 @@ export default function ReporteFinanciero() {
           </tr>
         </thead>
         <tbody>
-          {datos.map((d) => (
+          {datos.length === 0 ? (
+            <tr><td colSpan="4">No hay datos para este periodo</td></tr>
+          ) : datos.map((d) => (
             <tr key={d.periodo}>
               <td>{d.periodo}</td>
               <td>{fmt(d.mantenimiento)}</td>
               <td>{fmt(d.venta)}</td>
-              <td><strong>{fmt(d.mantenimiento + d.venta)}</strong></td>
+              <td><strong>{fmt((Number(d.mantenimiento) || 0) + (Number(d.venta) || 0))}</strong></td>
             </tr>
           ))}
         </tbody>

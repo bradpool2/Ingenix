@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import "../CSS/Global.css";
 import NavBar from "../components/NavBar";
  
@@ -313,6 +313,18 @@ export default function SolicitudCliente() {
   const [enviando, setEnviando] = useState(false);
   const [errorGeneral, setErrorGeneral] = useState("");
   const [exito, setExito] = useState(null); 
+  const [misSolicitudes, setMisSolicitudes] = useState([]);
+  const [cargandoSolicitudes, setCargandoSolicitudes] = useState(true);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/solicitudes/mis-solicitudes", {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then((res) => res.ok ? res.json() : [])
+      .then((solicitudes) => setMisSolicitudes(Array.isArray(solicitudes) ? solicitudes : []))
+      .catch((error) => console.error("No se pudieron cargar tus solicitudes:", error))
+      .finally(() => setCargandoSolicitudes(false));
+  }, [exito]);
  
   function seleccionarTipo(nuevoTipo) {
     setTipo(nuevoTipo);
@@ -433,6 +445,27 @@ export default function SolicitudCliente() {
           </form>
         )}
       </div>
+      <section className="seccion-actividad-reciente" style={{ maxWidth: 980, margin: '32px auto' }}>
+        <h2>Mis solicitudes</h2>
+        {cargandoSolicitudes ? <p>Cargando...</p> : misSolicitudes.length === 0 ? (
+          <p>Aún no tienes solicitudes registradas.</p>
+        ) : (
+          <div className="tabla-contenedor">
+            <table className="tabla-dashboard">
+              <thead><tr><th>Orden</th><th>Artículo / detalle</th><th>Estado</th><th>Fecha</th><th>Total</th></tr></thead>
+              <tbody>{misSolicitudes.map((solicitud) => (
+                <tr key={solicitud.idSolicitud}>
+                  <td>#{solicitud.numeroOrden || solicitud.idSolicitud}</td>
+                  <td>{solicitud.servicios || '—'}</td>
+                  <td>{solicitud.estado}</td>
+                  <td>{solicitud.fechaRegistro ? new Date(solicitud.fechaRegistro).toLocaleString('es-CO', { timeZone: 'America/Bogota' }) : '—'}</td>
+                  <td>${Number(solicitud.totalEstimado || 0).toLocaleString('es-CO')} COP</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

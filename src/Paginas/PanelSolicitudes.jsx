@@ -21,9 +21,9 @@ const PanelSolicitudes = () => {
         <h2>Panel de Gestión</h2>
         <ul>
           <li>
+            <Link to="/panel_solicitud" className="link-estadisticas">Estadísticas</Link>
+          </li>
           <li>
-  <Link to="/panel_solicitud" className="link-estadisticas">Estadísticas</Link>
-</li>
             <Link to="mantenimiento">Solicitud Mantenimiento</Link>
           </li>
           

@@ -33,7 +33,7 @@ export default function SolicitudEntrega() {
   const userString = localStorage.getItem('user');
   const usuario = userString ? JSON.parse(userString) : null;
   const rol = usuario?.rol || '';
-  const nombreUsuario = usuario?.user || '';
+  const nombreUsuario = usuario?.nombre || usuario?.user || '';
 
   const [solicitudes, setSolicitudes] = useState([]);
   const [filtro, setFiltro] = useState('Pendiente');
@@ -50,9 +50,6 @@ export default function SolicitudEntrega() {
 
   useEffect(() => {
     cargarSolicitudes();
-  }, []);
-  useEffect(() => {
-    cargarSolicitudes();
     cargarTecnicos();
   }, []);
   
@@ -60,7 +57,7 @@ export default function SolicitudEntrega() {
     try {
       const res = await authFetch('http://localhost:3000/usuarios/tecnicos');
       const data = await res.json();
-      setTecnicos(data);
+      setTecnicos(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error al cargar técnicos:', err);
     }
@@ -70,7 +67,7 @@ export default function SolicitudEntrega() {
     try {
       const res = await authFetch('http://localhost:3000/solicitudes');
       const data = await res.json();
-      setSolicitudes(data);
+      setSolicitudes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error al cargar solicitudes:', err);
     }
@@ -88,8 +85,9 @@ export default function SolicitudEntrega() {
         return;
       }
       const data = await res.json();
-      setResultadoBusqueda(data);
-    } catch {
+      setResultadoBusqueda(data?.idSolicitud ? data : null);
+    } catch (error) {
+      console.error('Error al buscar la solicitud:', error);
       setErrorBusqueda('Error al buscar la solicitud.');
     } finally {
       setBuscando(false);
@@ -111,6 +109,9 @@ export default function SolicitudEntrega() {
         }
         setModalDevolver(null);
         setObservacion('');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || data.message || 'No se pudo cambiar el estado.');
       }
     } catch (err) {
       console.error('Error al cambiar estado:', err);
@@ -132,6 +133,9 @@ export default function SolicitudEntrega() {
         setModalAsignar(null);
         setTecnicoElegido('');
         setUrgenciaElegida('Media');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || data.message || 'No se pudo asignar la solicitud.');
       }
     } catch (err) {
       console.error('Error al asignar caso:', err);
@@ -150,7 +154,7 @@ export default function SolicitudEntrega() {
   const TarjetaSolicitud = ({ solicitud }) => (
     <div className="tarjeta-entrega">
       <div className="tarjeta-entrega-header">
-        <span className="orden-numero">Orden #{solicitud.idSolicitud}</span>
+        <span className="orden-numero">Orden #{solicitud.numeroOrden || solicitud.idSolicitud}</span>
         <span
           className="estado-badge"
           style={{ background: COLORES_ESTADO[solicitud.estado] }}
@@ -164,13 +168,14 @@ export default function SolicitudEntrega() {
       {solicitud.urgencia || 'Media'}
     </span>
   </p>
-  <p><span className="label-campo">Técnico asignado:</span> {solicitud.tecnico_asignado || '—'}</p>
-  <p><span className="label-campo">Fecha:</span> {new Date(solicitud.fecha_registro).toLocaleDateString('es-CO')}</p>
+  <p><span className="label-campo">Cliente:</span> {solicitud.clienteNombre || '—'}</p>
+  <p><span className="label-campo">Técnico asignado:</span> {solicitud.tecnicoNombre || solicitud.tecnicoAsignado || '—'}</p>
+  <p><span className="label-campo">Fecha:</span> {solicitud.fechaRegistro ? new Date(solicitud.fechaRegistro).toLocaleString('es-CO', { timeZone: 'America/Bogota' }) : '—'}</p>
   <p><span className="label-campo">Servicios:</span> {solicitud.servicios || '—'}</p>
-  <p><span className="label-campo">Total:</span> ${solicitud.total_estimado?.toLocaleString('es-CO')} COP</p>
-  {solicitud.observacion_admin && (
+  <p><span className="label-campo">Total:</span> ${Number(solicitud.totalEstimado || 0).toLocaleString('es-CO')} COP</p>
+  {solicitud.observacionAdmin && (
     <p className="observacion-admin">
-      <span className="label-campo">Observación admin:</span> {solicitud.observacion_admin}
+      <span className="label-campo">Observación admin:</span> {solicitud.observacionAdmin}
     </p>
   )}
 </div>
@@ -185,7 +190,9 @@ export default function SolicitudEntrega() {
             onClick={() => cambiarEstado(
               solicitud.idSolicitud,
               SIGUIENTE_ESTADO_TECNICO[solicitud.estado],
-              solicitud.estado === 'Pendiente' ? { tecnico_asignado: nombreUsuario } : {}
+              solicitud.estado === 'Pendiente'
+                ? { tecnico_asignado: usuario?.id || usuario?.idUsuario }
+                : {}
             )}
           >
             {solicitud.estado === 'Pendiente' ? 'Tomar solicitud' : 'Marcar como Terminado'}
@@ -221,7 +228,7 @@ export default function SolicitudEntrega() {
         )}
         {rol === 'admin' &&
  solicitud.estado === 'Pendiente' &&
- !solicitud.tecnico_asignado && (
+ !solicitud.tecnicoAsignado && (
   <button
     className="btn-cambiar-estado"
     onClick={() => {
@@ -252,7 +259,7 @@ export default function SolicitudEntrega() {
   <div className="modal-overlay">
     <div className="modal-caja">
       <p className="formulario-titulo">Asignar caso</p>
-      <p className="formulario-subtitulo">Orden #{modalAsignar.idSolicitud}</p>
+      <p className="formulario-subtitulo">Orden #{modalAsignar.numeroOrden || modalAsignar.idSolicitud}</p>
 
       <label className="seccion-label">Técnico</label>
       <select

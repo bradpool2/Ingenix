@@ -25,12 +25,20 @@ function Perfil() {
   }
 
   const manejarCambio = (e) => {
-    setDatos({ ...datos, [e.target.name]: e.target.value });
+    const valor = e.target.name === 'telefono'
+      ? e.target.value.replace(/\D/g, '').slice(0, 10)
+      : e.target.value;
+    setDatos({ ...datos, [e.target.name]: valor });
   };
 
   const guardar = async () => {
+    if (!/^\d{10}$/.test(datos.telefono)) {
+      alert('El número de teléfono debe tener exactamente 10 dígitos');
+      return;
+    }
     try {
-      const res = await authFetch(`http://localhost:3000/usuarios/${userGuardado.idUsuario}`, {
+      const idUsuario = userGuardado.idUsuario || userGuardado.idusuario;
+      const res = await authFetch(`http://localhost:3000/usuarios/${idUsuario}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -44,12 +52,20 @@ function Perfil() {
       });
 
       if (res.ok) {
-        const actualizado = { ...userGuardado, nombre: datos.user, correo: datos.correo, telefono: datos.telefono };
-        localStorage.setItem('user', JSON.stringify(actualizado));
+        const respuesta = await res.json().catch(() => ({}));
+        localStorage.setItem('user', JSON.stringify({
+          ...userGuardado,
+          idUsuario,
+          nombre: datos.user,
+          correo: datos.correo,
+          telefono: datos.telefono,
+          ...(respuesta.usuario || {}),
+        }));
         alert("Datos actualizados correctamente");
         setEditando(false);
       } else {
-        alert("Error al actualizar");
+        const respuesta = await res.json().catch(() => ({}));
+        alert(respuesta.error || respuesta.message || "Error al actualizar");
       }
     } catch (error) {
       console.error(error);
@@ -98,7 +114,15 @@ function Perfil() {
             <div className="dato-grupo">
               <label>Teléfono</label>
               {editando
-                ? <input name="telefono" value={datos.telefono} onChange={manejarCambio} />
+                ? <input
+                    name="telefono"
+                    type="tel"
+                    value={datos.telefono}
+                    onChange={manejarCambio}
+                    inputMode="numeric"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                  />
                 : <span>{datos.telefono || 'No registrado'}</span>}
             </div>
 
