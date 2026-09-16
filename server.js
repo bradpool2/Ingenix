@@ -592,20 +592,31 @@ app.put('/productos/:id/categorias', (req, res) => {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 app.get('/api/dashboard/estadisticas', (req, res) => {
+    const periodo = req.query.periodo === 'dia' ? 'dia' : 'semana';
+    const filtroPeriodo = periodo === 'dia'
+        ? `fecha_registro >= CURRENT_DATE AND fecha_registro < CURRENT_DATE + INTERVAL '1 day'`
+        : `fecha_registro >= CURRENT_DATE - INTERVAL '6 days'`;
     conexion.query(
         `SELECT
-           COUNT(*) FILTER (WHERE estado NOT IN ('Entregado', 'Cancelado')) AS solicitudes_activas,
+           COUNT(*) FILTER (WHERE estado NOT IN ('Entregado', 'Cancelado', 'Almacenado')) AS activos_periodo,
+           COUNT(*) FILTER (WHERE estado NOT IN ('Entregado', 'Cancelado', 'Almacenado')
+             AND fecha_registro >= CURRENT_DATE AND fecha_registro < CURRENT_DATE + INTERVAL '1 day') AS activos_hoy,
            COUNT(*) FILTER (WHERE estado IN ('Aprobado', 'Terminado')) AS entregas_pendientes,
-           COALESCE(SUM(total_estimado) FILTER (WHERE estado NOT IN ('Cancelado')), 0) AS suma_total,
-           COUNT(*) FILTER (WHERE tipodesolicitud_iddesolicitud = 1) AS mantenimientos
+           COALESCE(SUM(total_estimado) FILTER (WHERE estado NOT IN ('Cancelado') AND ${filtroPeriodo}), 0) AS total_estimado_periodo,
+           COUNT(*) FILTER (WHERE tipodesolicitud_iddesolicitud = 1 AND ${filtroPeriodo}) AS mantenimientos_periodo,
+           COUNT(*) FILTER (WHERE tipodesolicitud_iddesolicitud = 4 AND ${filtroPeriodo}) AS ventas_periodo
          FROM solicitud`,
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             const datos = results[0];
             res.json({
-                mantenimientos: `${datos.mantenimientos || 0} Activos`,
-                entregas: `${datos.entregas_pendientes || 0} Órdenes`,
-                totalEstimado: `${Number(datos.suma_total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`
+                periodo,
+                activosPeriodo: Number(datos.activos_periodo) || 0,
+                activosHoy: Number(datos.activos_hoy) || 0,
+                entregasPendientes: Number(datos.entregas_pendientes) || 0,
+                mantenimientosPeriodo: Number(datos.mantenimientos_periodo) || 0,
+                ventasPeriodo: Number(datos.ventas_periodo) || 0,
+                totalEstimadoPeriodo: Number(datos.total_estimado_periodo) || 0,
             });
         }
     );
@@ -620,7 +631,7 @@ app.get('/api/dashboard/ultimas-solicitudes', (req, res) => {
     DATE_FORMAT(fecha_registro, '%d/%m/%Y %H:%i') AS fecha,
     total_estimado
     FROM solicitud
-    WHERE DATE(fecha_registro) = CURDATE()
+    WHERE fecha_registro >= CURRENT_DATE - INTERVAL '6 days'
     ORDER BY fecha_registro DESC
     LIMIT 5;`,
         (err, results) => {
@@ -761,14 +772,22 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
 // ─── Ventas (carrito) ─────────────────────────────────────────────────────────
 app.post('/venta', verificarToken, (req, res) => {
     const { idUsuario, total, metodoPago, detallePago, productos } = req.body;
+    const usuarioAutenticado = Number(req.usuario?.id);
+    const usuarioSolicitado = Number(idUsuario);
 
-    if (!idUsuario || !total || !productos || productos.length === 0) {
+    if (!Number.isInteger(usuarioAutenticado) || usuarioAutenticado < 1) {
+        return res.status(401).json({ message: 'La sesión no contiene un usuario válido.' });
+    }
+    if (usuarioSolicitado && usuarioSolicitado !== usuarioAutenticado) {
+        return res.status(403).json({ message: 'El usuario de la venta no coincide con la sesión activa.' });
+    }
+    if (!total || !productos || productos.length === 0) {
         return res.status(400).json({ message: 'Faltan datos para registrar la venta' });
     }
 
     conexion.query(
         "INSERT INTO Venta (Fecha, Estado, total, idUsuario) VALUES (CURDATE(), 'pagado', ?, ?)",
-        [total, idUsuario],
+        [total, usuarioAutenticado],
         (err, resultVenta) => {
             if (err) return res.status(500).json({ error: err.message });
 
@@ -823,14 +842,60 @@ const ejecutarAlmacenadoProgramado = () => {
          SET estado = 'Almacenado'
          WHERE tipodesolicitud_iddesolicitud = 1
            AND estado = 'Aprobado'
-           AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'`,
-        (error, resultado) => {
+           AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'
+         RETURNING idsolicitud, numeroorden, cliente_idcliente`,
+        async (error, solicitudesArchivadas) => {
             if (error) {
                 console.error('❌ Error en el archivado automático:', error.message);
                 return;
             }
-            if (resultado.affectedRows > 0) {
-                console.log(`📦 Archivado automático: ${resultado.affectedRows} solicitud(es).`);
+
+            const solicitudes = Array.isArray(solicitudesArchivadas)
+                ? solicitudesArchivadas
+                : [];
+
+            if (solicitudes.length === 0) return;
+
+            try {
+                await Promise.all(solicitudes.map(async (solicitud) => {
+                    const idSolicitud = solicitud.idSolicitud ?? solicitud.idsolicitud;
+                    const numeroOrden = solicitud.numeroOrden ?? solicitud.numeroorden;
+                    const clienteId = solicitud.clienteId ?? solicitud.cliente_idcliente;
+                    const clientes = await new Promise((resolve, reject) => {
+                        conexion.query(
+                            `SELECT u.idusuario AS "usuarioId"
+                             FROM cliente c
+                             INNER JOIN usuario u ON u.idusuario = c.usuario_idusuario
+                             WHERE c.idcliente = ?`,
+                            [clienteId],
+                            (clienteError, resultados) => (
+                                clienteError ? reject(clienteError) : resolve(resultados)
+                            )
+                        );
+                    });
+                    const usuarioId = clientes[0]?.usuarioId;
+                    const notificaciones = [
+                        usuarioId && crearNotificacion({
+                            titulo: 'Solicitud almacenada',
+                            mensaje: `La solicitud ${numeroOrden || `#${idSolicitud}`} fue almacenada automáticamente después de 30 días.`,
+                            tipo: 'sistema',
+                            rolDestino: 'cliente',
+                            usuarioIds: [usuarioId],
+                            idSolicitud,
+                        }),
+                        crearNotificacion({
+                            titulo: 'Solicitud archivada automáticamente',
+                            mensaje: `La solicitud ${numeroOrden || `#${idSolicitud}`} cambió a estado Almacenado.`,
+                            tipo: 'sistema',
+                            rolDestino: 'admin',
+                            idSolicitud,
+                        }),
+                    ].filter(Boolean);
+                    await Promise.all(notificaciones);
+                }));
+                console.log(`📦 Archivado automático: ${solicitudes.length} solicitud(es).`);
+            } catch (notificationError) {
+                console.error('❌ Solicitudes archivadas, pero falló una notificación:', notificationError.message);
             }
         }
     );

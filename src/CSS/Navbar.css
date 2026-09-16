@@ -34,6 +34,29 @@ nav {
     font-size: 14px;
     white-space: nowrap;
   }
+
+  .brand-copy {
+    display: grid;
+    gap: 1px;
+    line-height: 1;
+  }
+
+  .brand-copy strong {
+    color: #292814;
+    font-size: 15px;
+    letter-spacing: 0.16em;
+  }
+
+  .brand-copy small {
+    color: #5c9690;
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+
+  .nav-user-name {
+    padding-left: 10px;
+    border-left: 1px solid rgba(153, 193, 187, 0.45);
+  }
   
   .logo {
     width: 80px;
@@ -133,12 +156,33 @@ transition: all 0.3s ease;
   right: 0;
   width: 330px;
   max-height: 430px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 14px;
   border: 1px solid rgba(153, 193, 187, 0.35);
   border-radius: 12px;
   background: white;
   box-shadow: 0 14px 32px rgba(41, 40, 20, 0.18);
+}
+
+.notificaciones-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.notificaciones-panel::-webkit-scrollbar-track {
+  background: #edf7f5;
+  border-radius: 8px;
+}
+
+.notificaciones-panel::-webkit-scrollbar-thumb {
+  background: #99c1bb;
+  border-radius: 8px;
+  border: 2px solid #edf7f5;
+}
+
+.notificaciones-panel {
+  scrollbar-color: #99c1bb #edf7f5;
+  scrollbar-width: thin;
 }
 
 .notificaciones-header {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
+import { authFetch } from "../components/api.js";
 import "../CSS/Global.css";
 import nequiLogo from "../assets/nequi.svg";
 import daviplataLogo from "../assets/daviplata.png";
@@ -52,7 +53,7 @@ const METODOS = [
 function Pago() {
   const navigate = useNavigate();
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user") || "null");
   const carrito = JSON.parse(localStorage.getItem("carrito")) || [];
 
   const total = carrito.reduce(
@@ -134,7 +135,7 @@ function Pago() {
     setProcesando(true);
 
     try {
-      const res = await fetch("http://localhost:3000/venta", {
+      const res = await authFetch("http://localhost:3000/venta", {
         method: "POST",
 
         headers: {
@@ -142,7 +143,7 @@ function Pago() {
         },
 
         body: JSON.stringify({
-          idUsuario: user.idUsuario,
+          idUsuario: user.idUsuario ?? user.idusuario ?? user.id,
 
           total,
 

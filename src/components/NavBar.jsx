@@ -3,7 +3,6 @@
   import { useEffect, useState } from 'react';
   import { FaBell } from 'react-icons/fa';
   import '../CSS/NavBar.css';
-  import logo from '../assets/Logo_reloj.png';
   import Carrito_plegable from "../Paginas/Carrito_plegable";
   import { authFetch } from './api.js';
   import { useRef } from 'react';
@@ -77,6 +76,18 @@
       }
     };
 
+    const abrirNotificacion = (notificacion) => {
+      if (notificacion.titulo?.toLowerCase().includes('almacen')) {
+        navigate(rol === 'cliente' || rol === 'usuario'
+          ? '/Solicitud_Cliente'
+          : '/panel_solicitud/Almacenado');
+      } else if (notificacion.idsolicitud) {
+        navigate(rol === 'cliente' || rol === 'usuario'
+          ? '/Solicitud_Cliente'
+          : '/panel_solicitud');
+      }
+    };
+
     const ejecutarAccion = async (event, notificacion, accion) => {
       event.stopPropagation();
       const response = await authFetch(
@@ -110,8 +121,11 @@
     return (
       <nav>
   <div className="logo-container">
-    <img className='logo' src={logo} alt="Logo" />
-        <span>{usuario?.nombre}</span>
+    <div className="brand-copy">
+      <strong>INGENIX</strong>
+      <small>Joyería · Relojería</small>
+    </div>
+    {usuario?.nombre && <span className="nav-user-name">{usuario.nombre}</span>}
 
   </div>
 
@@ -189,7 +203,10 @@
                 <div
                   className={`notificacion-item ${notificacion.leida ? '' : 'no-leida'}`}
                   key={notificacion.idnotificacion}
-                  onClick={() => marcarComoLeida(notificacion)}
+                  onClick={() => {
+                    marcarComoLeida(notificacion);
+                    abrirNotificacion(notificacion);
+                  }}
                   role="button"
                   tabIndex="0"
                 >
@@ -231,7 +248,7 @@
       onClick={() => {
         setToast(null);
         setMostrarNotificaciones(true);
-        if (toast.idsolicitud) navigate('/panel_solicitud');
+        abrirNotificacion(toast);
       }}
     >
       <FaBell />

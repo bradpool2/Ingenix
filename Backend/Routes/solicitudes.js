@@ -136,12 +136,19 @@ router.get('/solicitudes', verificarToken, soloTecnico, (req, res) => {
       CASE WHEN s.tipodesolicitud_iddesolicitud = 4 THEN 'Venta' ELSE 'Mantenimiento' END AS tipo,
       s.fecha_registro AS "fechaRegistro",
       s.total_estimado AS "totalEstimado",
+      s.tipodesolicitud_iddesolicitud AS "tipoSolicitud",
       s.estado,
       s.urgencia,
       s.tecnico_asignado AS "tecnicoAsignado",
       COALESCE(u.nombre, s.tecnico_asignado) AS "tecnicoNombre",
       s.observacion_admin AS "observacionAdmin",
       clienteUsuario.nombre AS "clienteNombre",
+      ds.nombrearticulo AS "nombreArticulo",
+      ds.descripcion,
+      ds.estadoarticulo AS "estadoArticulo",
+      ds.precioestimado AS "precioCliente",
+      ds.precio_final AS "precioFinal",
+      ds.imagen,
       COALESCE(
         STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
         STRING_AGG(ps.detalle_servicio, ', ')
@@ -155,7 +162,9 @@ router.get('/solicitudes', verificarToken, soloTecnico, (req, res) => {
     ${filtroTecnico}
     GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.total_estimado,
       s.estado, s.urgencia, s.tecnico_asignado, u.nombre, s.observacion_admin,
-      s.cliente_idcliente, clienteUsuario.nombre
+      s.cliente_idcliente, clienteUsuario.nombre, s.tipodesolicitud_iddesolicitud,
+      ds.nombrearticulo, ds.descripcion, ds.estadoarticulo, ds.precioestimado,
+      ds.precio_final, ds.imagen
     ORDER BY s.fecha_registro DESC
   `;
 
@@ -232,8 +241,7 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
       AND estado = 'Aprobado'
       AND fecha_registro IS NOT NULL
       AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'
-    RETURNING idsolicitud AS "idSolicitud", numeroorden AS "numeroOrden",
-      cliente_idcliente AS "clienteId", fecha_registro AS "fechaRegistro"
+    RETURNING idsolicitud, numeroorden, cliente_idcliente, fecha_registro
   `;
 
   conexion.query(query, async (error, archivadas) => {
@@ -242,13 +250,16 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
     const solicitudes = Array.isArray(archivadas) ? archivadas : [];
     try {
       await Promise.all(solicitudes.map(async (solicitud) => {
+        const idSolicitud = solicitud.idSolicitud ?? solicitud.idsolicitud;
+        const numeroOrden = solicitud.numeroOrden ?? solicitud.numeroorden;
+        const clienteId = solicitud.clienteId ?? solicitud.cliente_idcliente;
         const clientes = await new Promise((resolve, reject) => {
           conexion.query(
             `SELECT u.idusuario AS "usuarioId"
              FROM cliente c
              INNER JOIN usuario u ON u.idusuario = c.usuario_idusuario
              WHERE c.idcliente = ?`,
-            [solicitud.clienteId],
+            [clienteId],
             (clienteError, resultados) => clienteError ? reject(clienteError) : resolve(resultados)
           );
         });
@@ -256,18 +267,18 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
         const notificaciones = [
           usuarioId && crearNotificacion({
             titulo: 'Solicitud almacenada',
-            mensaje: `La solicitud ${solicitud.numeroOrden || `#${solicitud.idSolicitud}`} fue almacenada automáticamente después de 30 días.`,
+            mensaje: `La solicitud ${numeroOrden || `#${idSolicitud}`} fue almacenada automáticamente después de 30 días.`,
             tipo: 'sistema',
             rolDestino: 'cliente',
             usuarioIds: [usuarioId],
-            idSolicitud: solicitud.idSolicitud,
+            idSolicitud,
           }),
           crearNotificacion({
             titulo: 'Solicitud archivada automáticamente',
-            mensaje: `La solicitud ${solicitud.numeroOrden || `#${solicitud.idSolicitud}`} cambió a estado Almacenado.`,
+            mensaje: `La solicitud ${numeroOrden || `#${idSolicitud}`} cambió a estado Almacenado.`,
             tipo: 'sistema',
             rolDestino: 'admin',
-            idSolicitud: solicitud.idSolicitud,
+            idSolicitud,
           }),
         ].filter(Boolean);
         await Promise.all(notificaciones);
@@ -275,14 +286,24 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
       return res.json({
         message: 'Proceso de almacenado automático completado.',
         archivadas: solicitudes.length,
-        solicitudes,
+        solicitudes: solicitudes.map((solicitud) => ({
+          idSolicitud: solicitud.idSolicitud ?? solicitud.idsolicitud,
+          numeroOrden: solicitud.numeroOrden ?? solicitud.numeroorden,
+          clienteId: solicitud.clienteId ?? solicitud.cliente_idcliente,
+          fechaRegistro: solicitud.fechaRegistro ?? solicitud.fecha_registro,
+        })),
       });
     } catch (notificationError) {
       console.error('❌ Solicitudes archivadas, pero falló una notificación:', notificationError.message);
       return res.status(207).json({
         message: 'Solicitudes archivadas, pero no se pudieron crear todas las notificaciones.',
         archivadas: solicitudes.length,
-        solicitudes,
+        solicitudes: solicitudes.map((solicitud) => ({
+          idSolicitud: solicitud.idSolicitud ?? solicitud.idsolicitud,
+          numeroOrden: solicitud.numeroOrden ?? solicitud.numeroorden,
+          clienteId: solicitud.clienteId ?? solicitud.cliente_idcliente,
+          fechaRegistro: solicitud.fechaRegistro ?? solicitud.fecha_registro,
+        })),
         advertencia: true,
       });
     }
@@ -430,11 +451,18 @@ router.get('/solicitudes/:id', (req, res) => {
       s.numeroorden AS "numeroOrden",
       s.fecha_registro AS "fechaRegistro",
       s.total_estimado AS "totalEstimado",
+      s.tipodesolicitud_iddesolicitud AS "tipoSolicitud",
       s.estado,
       s.urgencia,
       s.tecnico_asignado AS "tecnicoAsignado",
       COALESCE(u.nombre, s.tecnico_asignado) AS "tecnicoNombre",
       clienteUsuario.nombre AS "clienteNombre",
+      ds.nombrearticulo AS "nombreArticulo",
+      ds.descripcion,
+      ds.estadoarticulo AS "estadoArticulo",
+      ds.precioestimado AS "precioCliente",
+      ds.precio_final AS "precioFinal",
+      ds.imagen,
       s.observacion_admin AS "observacionAdmin",
       COALESCE(
         STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
@@ -449,7 +477,9 @@ router.get('/solicitudes/:id', (req, res) => {
     WHERE s.idsolicitud = ?
     GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.total_estimado,
       s.estado, s.urgencia, s.tecnico_asignado, u.nombre, s.observacion_admin,
-      clienteUsuario.nombre
+      clienteUsuario.nombre, s.tipodesolicitud_iddesolicitud,
+      ds.nombrearticulo, ds.descripcion, ds.estadoarticulo,
+      ds.precioestimado, ds.precio_final, ds.imagen
   `;
 
   conexion.query(query, [id], (err, results) => {
@@ -463,64 +493,85 @@ router.get('/solicitudes/:id', (req, res) => {
 router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) => {
   const { id } = req.params;
   const { estado, tecnico_asignado, observacion_admin } = req.body;
+  const estadosMantenimiento = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Almacenado', 'Cancelado'];
+  const estadosVenta = ['Pendiente', 'En revision', 'Aprobado', 'Cancelado'];
 
-  const estadosValidos = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Almacenado', 'Cancelado'];
-  if (!estadosValidos.includes(estado)) {
-    return res.status(400).json({ error: 'Estado no válido' });
-  }
-
-  let query = `UPDATE solicitud SET estado = ?`;
-  const params = [estado];
-
-  if (tecnico_asignado) {
-    query += `, tecnico_asignado = ?`;
-    params.push(tecnico_asignado);
-  }
-
-  if (observacion_admin) {
-    query += `, observacion_admin = ?`;
-    params.push(observacion_admin);
-  }
-
-  query += ` WHERE idSolicitud = ?`;
-  params.push(id);
-
-  conexion.query(query, params, (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
-    conexion.query(
-      `SELECT u.idusuario AS "usuarioId"
-       FROM solicitud s
-       INNER JOIN cliente c ON c.idcliente = s.cliente_idcliente
-       INNER JOIN usuario u ON u.idusuario = c.usuario_idusuario
-       WHERE s.idsolicitud = ?`,
-      [id],
-      (errorCliente, clientes) => {
-        if (errorCliente) return res.status(500).json({ error: errorCliente.message });
-        const usuarioId = clientes[0]?.usuarioId;
-        const avisarCliente = usuarioId
-          ? crearNotificacion({
-            titulo: 'Actualización de tu solicitud',
-            mensaje: `Tu solicitud #${id} ahora está: ${estado}.`,
-            tipo: 'sistema',
-            rolDestino: 'cliente',
-            usuarioIds: [usuarioId],
-            idSolicitud: id,
-          })
-          : Promise.resolve();
-
-        avisarCliente
-          .then(() => res.json({ message: 'Estado actualizado correctamente' }))
-          .catch((notificationError) => {
-            console.error('❌ Estado actualizado, pero falló la notificación:', notificationError.message);
-            res.json({
-              message: 'Estado actualizado correctamente, pero no se pudo notificar al cliente.',
-              advertencia: true,
-            });
-          });
+  conexion.query(
+    'SELECT tipodesolicitud_iddesolicitud AS "tipoSolicitud" FROM solicitud WHERE idsolicitud = ?',
+    [id],
+    (tipoError, filas) => {
+      if (tipoError) return res.status(500).json({ error: tipoError.message });
+      if (filas.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+      const esVenta = Number(filas[0].tipoSolicitud) === 4;
+      if (!(esVenta ? estadosVenta : estadosMantenimiento).includes(estado)) {
+        return res.status(400).json({ error: esVenta ? 'Estado no válido para una solicitud de venta' : 'Estado no válido' });
       }
-    );
-  });
+
+      let query = 'UPDATE solicitud SET estado = ?';
+      const params = [estado];
+      if (tecnico_asignado) {
+        query += ', tecnico_asignado = ?';
+        params.push(tecnico_asignado);
+      }
+      if (observacion_admin) {
+        query += ', observacion_admin = ?';
+        params.push(observacion_admin);
+      }
+      query += ' WHERE idsolicitud = ?';
+      params.push(id);
+
+      conexion.query(query, params, (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+        conexion.query(
+          `SELECT u.idusuario AS "usuarioId"
+           FROM solicitud s
+           INNER JOIN cliente c ON c.idcliente = s.cliente_idcliente
+           INNER JOIN usuario u ON u.idusuario = c.usuario_idusuario
+           WHERE s.idsolicitud = ?`,
+          [id],
+          (errorCliente, clientes) => {
+            if (errorCliente) return res.status(500).json({ error: errorCliente.message });
+            const usuarioId = clientes[0]?.usuarioId;
+            const avisarCliente = usuarioId ? crearNotificacion({
+              titulo: 'Actualización de tu solicitud',
+              mensaje: `Tu solicitud #${id} ahora está: ${estado}.`,
+              tipo: 'sistema',
+              rolDestino: 'cliente',
+              usuarioIds: [usuarioId],
+              idSolicitud: id,
+            }) : Promise.resolve();
+            avisarCliente
+              .then(() => res.json({ message: 'Estado actualizado correctamente' }))
+              .catch((notificationError) => {
+                console.error('❌ Estado actualizado, pero falló la notificación:', notificationError.message);
+                res.json({ message: 'Estado actualizado correctamente, pero no se pudo notificar al cliente.', advertencia: true });
+              });
+          }
+        );
+      });
+    }
+  );
+});
+
+router.put('/solicitudes/:id/venta', verificarToken, soloTecnico, (req, res) => {
+  const { id } = req.params;
+  const precioFinal = req.body.precioFinal === '' || req.body.precioFinal == null ? null : Number(req.body.precioFinal);
+  if (precioFinal !== null && (!Number.isFinite(precioFinal) || precioFinal < 0)) {
+    return res.status(400).json({ error: 'El precio final debe ser un número válido.' });
+  }
+  conexion.query(
+    `UPDATE detalle_solicitud ds SET precio_final = ?
+     FROM solicitud s
+     WHERE ds.solicitud_idsolicitud = s.idsolicitud
+       AND s.idsolicitud = ? AND s.tipodesolicitud_iddesolicitud = 4`,
+    [precioFinal, id],
+    (error, result) => {
+      if (error) return res.status(500).json({ error: error.message });
+      if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud de venta o detalle no encontrado' });
+      res.json({ message: 'Precio final actualizado correctamente', precioFinal });
+    }
+  );
 });
 // Reporte financiero — semana / mes / año
 router.get('/reportes/financiero', (req, res) => {
@@ -539,8 +590,12 @@ router.get('/reportes/financiero', (req, res) => {
     SELECT 
       TO_CHAR(s.fecha_registro, '${formatoFecha}') AS periodo,
       s.TipoDeSolicitud_idDeSolicitud AS tipo,
-      SUM(s.total_estimado) AS total
+      SUM(CASE
+        WHEN s.TipoDeSolicitud_idDeSolicitud = 4 THEN COALESCE(ds.precio_final, ds.precioestimado, s.total_estimado, 0)
+        ELSE COALESCE(s.total_estimado, 0)
+      END) AS total
     FROM solicitud s
+    LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
     WHERE s.estado = 'Entregado'
     GROUP BY periodo, tipo
     ORDER BY periodo ASC
@@ -568,9 +623,13 @@ router.get('/reportes/financiero/totales', (req, res) => {
   const query = `
     SELECT 
       s.TipoDeSolicitud_idDeSolicitud AS tipo,
-      SUM(s.total_estimado) AS total,
+      SUM(CASE
+        WHEN s.TipoDeSolicitud_idDeSolicitud = 4 THEN COALESCE(ds.precio_final, ds.precioestimado, s.total_estimado, 0)
+        ELSE COALESCE(s.total_estimado, 0)
+      END) AS total,
       COUNT(*) AS cantidad
     FROM solicitud s
+    LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
     WHERE s.estado = 'Entregado'
     GROUP BY tipo
   `;
