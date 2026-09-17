@@ -417,7 +417,7 @@ app.get('/api/dashboard/estadisticas', async (req, res) => {
 app.get('/api/dashboard/ultimas-solicitudes', async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT "idSolicitud", TO_CHAR(fecha_registro, 'DD/MM/YYYY HH24:MI') AS fecha, total_estimado
+            `SELECT idSolicitud, TO_CHAR(fecha_registro, 'DD/MM/YYYY HH24:MI') AS fecha, total_estimado
              FROM solicitud WHERE DATE(fecha_registro) = CURRENT_DATE
              ORDER BY fecha_registro DESC LIMIT 5`
         );
@@ -490,10 +490,23 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res)
     const ordenGenerada   = Math.floor(Math.random() * 90000) + 10000;
 
     try {
+        const clienteResult = await conexion.query(
+            'SELECT idcliente FROM cliente WHERE usuario_idusuario = $1',
+            [req.usuario.id]
+        );
+
+        if (clienteResult.rows.length === 0) {
+            return res.status(400).json({
+                error: 'El usuario autenticado no tiene un perfil de cliente.',
+            });
+        }
+
+        const idCliente = clienteResult.rows[0].idcliente;
+
         await conexion.query(
-            `INSERT INTO solicitud ("idSolicitud", "numeroOrden", fecha_registro, "cliente_idCliente", estado, "TipoDeSolicitud_idDeSolicitud", urgencia)
+            `INSERT INTO solicitud (idSolicitud, numeroOrden, fecha_registro, cliente_idCliente, estado, TipoDeSolicitud_idDeSolicitud, urgencia)
              VALUES ($1, $2, NOW(), $3, 'Pendiente', $4, $5)`,
-            [ordenGenerada, String(ordenGenerada), req.usuario.id, tipoDeSolicitud, urgenciaFinal]
+            [ordenGenerada, String(ordenGenerada), idCliente, tipoDeSolicitud, urgenciaFinal]
         );
 
         const detalle = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}` +
@@ -502,14 +515,14 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res)
             `${imagenUrl ? ` | Imagen: ${imagenUrl}` : ''}`;
 
         await conexion.query(
-            `INSERT INTO producto_y_solicitud ("producto_idProducto", "solicitud_idSolicitud", "Cantidad", detalle_servicio)
+            `INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
              VALUES ($1, $2, 1, $3)`,
-            [tipo === 'mantenimiento' ? 1 : 2, ordenGenerada, detalle]
+            [2, ordenGenerada, detalle]
         );
 
         if (imagenUrl) {
             await conexion.query(
-                `INSERT INTO "detalleSolicitud" ("solicitud_idSolicitud", "nombreArticulo", descripcion, "estadoArticulo", "precioEstimado", imagen)
+                `INSERT INTO detalle_solicitud (solicitud_idSolicitud, nombreArticulo, descripcion, estadoArticulo, precioEstimado, imagen)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
                 [ordenGenerada, nombreArticulo, descripcion, estadoArticulo || null, precioEstimado ? Number(precioEstimado) : null, imagenUrl]
             );
@@ -578,7 +591,7 @@ app.get('/ventas/:idUsuario', verificarToken, async (req, res) => {
 app.get('/api/tecnico/solicitudes', verificarToken, soloTecnico, async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT "idSolicitud", TO_CHAR(fecha_registro, 'DD/MM/YYYY') AS fecha, total_estimado, estado
+            `SELECT idSolicitud, TO_CHAR(fecha_registro, 'DD/MM/YYYY') AS fecha, total_estimado, estado
              FROM solicitud ORDER BY fecha_registro DESC`
         );
         res.json(rows);
@@ -591,7 +604,7 @@ app.put('/api/tecnico/solicitudes/:id/estado', verificarToken, soloTecnico, asyn
     const { nuevoEstado } = req.body;
     try {
         await conexion.query(
-            'UPDATE solicitud SET estado = $1 WHERE "idSolicitud" = $2',
+            'UPDATE solicitud SET estado = $1 WHERE idSolicitud = $2',
             [nuevoEstado, req.params.id]
         );
         res.json({ message: `Solicitud #${req.params.id} actualizada a ${nuevoEstado}` });
@@ -600,27 +613,23 @@ app.put('/api/tecnico/solicitudes/:id/estado', verificarToken, soloTecnico, asyn
     }
 });
 
-// ─── Iniciar servidor ─────────────────────────────────────────────────────────
-app.listen(PUERTO, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
-});
-
 // Solicitudes del cliente autenticado
 app.get('/api/mis-solicitudes', verificarToken, async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT s."idSolicitud",
-                    s."numeroOrden",
+                `SELECT s.idSolicitud AS "idSolicitud",
+                    s.numeroOrden AS "numeroOrden",
                     s.fecha_registro,
                     s.total_estimado,
                     s.estado,
                     s.urgencia,
                     COALESCE(STRING_AGG(COALESCE(ps.detalle_servicio, ''), ', '), '') AS servicios
              FROM solicitud s
-             LEFT JOIN producto_y_solicitud ps
-               ON ps.solicitud_idSolicitud = s."idSolicitud"
-             WHERE s."cliente_idCliente" = $1
-             GROUP BY s."idSolicitud", s."numeroOrden", s.fecha_registro,
+                         JOIN cliente c ON c.idcliente = s.cliente_idcliente
+                         LEFT JOIN producto_y_solicitud ps
+                             ON ps.solicitud_idSolicitud = s.idSolicitud
+                         WHERE c.usuario_idusuario = $1
+                         GROUP BY s.idSolicitud, s.numeroOrden, s.fecha_registro,
                       s.total_estimado, s.estado, s.urgencia
              ORDER BY s.fecha_registro DESC`,
             [req.usuario.id]
@@ -639,4 +648,9 @@ app.get('/api/mis-solicitudes', verificarToken, async (req, res) => {
         console.error('Error en /api/mis-solicitudes:', err.message);
         res.status(500).json({ error: err.message });
     }
+});
+
+// ─── Iniciar servidor ─────────────────────────────────────────────────────────
+app.listen(PUERTO, () => {
+    console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
 });

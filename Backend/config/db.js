@@ -82,9 +82,11 @@ const conexion = {
             ? `${converted.text.trim().replace(/;$/, '')} RETURNING *`
             : converted.text;
 
-        pool.query(text, converted.values, (error, result) => {
-            if (typeof done !== 'function') return;
+        if (typeof done !== 'function') {
+            return pool.query(text, converted.values);
+        }
 
+        pool.query(text, converted.values, (error, result) => {
             if (error) {
                 done(error);
                 return;
