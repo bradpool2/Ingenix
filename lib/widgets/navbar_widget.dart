@@ -5,19 +5,33 @@ import 'package:badges/badges.dart' as badges;
 import '../services/auth_service.dart';
 import '../services/carrito_service.dart';
 import '../core/theme.dart';
+import '../screens/carrito_plegable_screen.dart';
 
-class NavBarWidget extends StatelessWidget implements PreferredSizeWidget {
+class NavBarWidget extends StatefulWidget implements PreferredSizeWidget {
   const NavBarWidget({super.key});
 
   @override
   Size get preferredSize => const Size.fromHeight(58);
 
   @override
+  State<NavBarWidget> createState() => _NavBarWidgetState();
+}
+
+class _NavBarWidgetState extends State<NavBarWidget> {
+  OverlayEntry? _carritoOverlay;
+
+  @override
+  void dispose() {
+    _carritoOverlay?.remove();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final carrito = context.watch<CarritoService>();
     final user = auth.usuario;
-    final isWide = MediaQuery.sizeOf(context).width >= 900;
+    final isWide = MediaQuery.sizeOf(context).width >= 1250;
     final initial = user?.nombre.isNotEmpty == true
         ? user!.nombre.substring(0, 1).toUpperCase()
         : 'I';
@@ -96,7 +110,7 @@ class NavBarWidget extends StatelessWidget implements PreferredSizeWidget {
                     tooltip: 'Carrito',
                     icon: const Icon(Icons.shopping_cart_outlined),
                     color: IngenixTheme.texto,
-                    onPressed: () => context.go('/carrito'),
+                    onPressed: () => _abrirCarrito(context),
                   ),
                 ),
               IconButton(
@@ -135,7 +149,7 @@ class NavBarWidget extends StatelessWidget implements PreferredSizeWidget {
                   child: IconButton(
                     tooltip: 'Carrito',
                     icon: const Icon(Icons.shopping_cart_outlined),
-                    onPressed: () => context.go('/carrito'),
+                    onPressed: () => _abrirCarrito(context),
                   ),
                 ),
               PopupMenuButton<String>(
@@ -163,6 +177,45 @@ class NavBarWidget extends StatelessWidget implements PreferredSizeWidget {
               ),
             ],
     );
+  }
+
+  void _abrirCarrito(BuildContext context) {
+    if (_carritoOverlay != null) {
+      _cerrarCarrito();
+      return;
+    }
+
+    final overlay = Overlay.of(context);
+    _carritoOverlay = OverlayEntry(
+      builder: (overlayContext) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _cerrarCarrito,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 16,
+            right: 16,
+            child: Align(
+              alignment: Alignment.topRight,
+              child: CarritoPlegableScreen(onClose: _cerrarCarrito),
+            ),
+          ),
+        ],
+      ),
+    );
+    overlay.insert(_carritoOverlay!);
+    setState(() {});
+  }
+
+  void _cerrarCarrito() {
+    _carritoOverlay?.remove();
+    _carritoOverlay = null;
+    if (mounted) setState(() {});
   }
 
   void _selectMenu(BuildContext context, AuthService auth, String value) async {

@@ -272,11 +272,22 @@ app.delete('/usuarios/:id', verificarToken, soloAdmin, async (req, res) => {
 app.get('/productos/con-categorias', async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT p.*, STRING_AGG(c.nombre, ', ') AS categorias
+            `SELECT p.idproducto AS "idProducto",
+                    p.nombre,
+                    p.descripcion,
+                    p.precio,
+                    p.stock,
+                    p.tipoproducto_idtipoproducto AS "tipoProducto_idTipoProducto",
+                    categorias.categorias
              FROM producto p
-             LEFT JOIN producto_categoria pc ON pc."producto_idProducto" = p."idProducto"
-             LEFT JOIN categoria c ON c."idCategoria" = pc."categoria_idCategoria"
-             GROUP BY p."idProducto"`
+             LEFT JOIN (
+                 SELECT pc.producto_idproducto,
+                        STRING_AGG(c.nombre, ', ') AS categorias
+                 FROM producto_categoria pc
+                 JOIN categoria c ON c.idcategoria = pc.categoria_idcategoria
+                 GROUP BY pc.producto_idproducto
+             ) AS categorias
+             ON categorias.producto_idproducto = p.idproducto`
         );
         res.json(rows);
     } catch (err) {
@@ -542,21 +553,21 @@ app.post('/venta', async (req, res) => {
 
     try {
         const { rows: ventaRows } = await conexion.query(
-            `INSERT INTO "Venta" ("Fecha", "Estado", total, "idUsuario") VALUES (CURRENT_DATE, 'pagado', $1, $2) RETURNING "idVenta"`,
+            `INSERT INTO venta (fecha, estado, total, idusuario) VALUES (CURRENT_DATE, 'pagado', $1, $2) RETURNING idventa`,
             [total, idUsuario]
         );
         const idVenta = ventaRows[0].idVenta;
 
         for (const p of productos) {
             await conexion.query(
-                `INSERT INTO "VentaDetalle" (cantidad, "precioUnitario", subtotal, "Venta_idVenta", "producto_idProducto") VALUES ($1, $2, $3, $4, $5)`,
+                `INSERT INTO ventadetalle (cantidad, preciounitario, subtotal, venta_idventa, producto_idproducto) VALUES ($1, $2, $3, $4, $5)`,
                 [p.cantidad, p.precioUnitario, p.cantidad * p.precioUnitario, idVenta, p.idProducto]
             );
         }
 
         const referencia = 'PAY-' + Date.now();
         await conexion.query(
-            `INSERT INTO pago ("Venta_idVenta", "metodoPago", "referenciaPago", "detallePago", "estadoPago") VALUES ($1, $2, $3, $4, $5)`,
+            `INSERT INTO pago (venta_idventa, metodopago, referenciapago, detallepago, estadopago) VALUES ($1, $2, $3, $4, $5)`,
             [idVenta, metodoPago, referencia, detallePago || null, 'aprobado']
         );
 

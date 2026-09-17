@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import '../core/constants.dart';
@@ -8,6 +9,7 @@ import '../core/theme.dart';
 import '../services/auth_service.dart';
 import '../services/carrito_service.dart';
 import '../widgets/navbar_widget.dart';
+import 'package:intl/intl.dart';
 
 class PagoScreen extends StatefulWidget {
   const PagoScreen({super.key});
@@ -17,31 +19,30 @@ class PagoScreen extends StatefulWidget {
 }
 
 class _PagoScreenState extends State<PagoScreen> {
-  int    _paso = 1;
+  int _paso = 1;
   String _metodo = '';
   final _detalleCtrl = TextEditingController();
-  bool   _procesando = false;
+  bool _procesando = false;
   String _referencia = '';
 
-  static const _metodos = [
-    {'id': 'Nequi',           'campo': 'telefono', 'label': 'Número de teléfono Nequi'},
-    {'id': 'Daviplata',       'campo': 'telefono', 'label': 'Número de teléfono Daviplata'},
-    {'id': 'PSE',             'campo': 'cuenta',   'label': 'Número de cuenta bancaria'},
-    {'id': 'Tarjeta crédito', 'campo': 'tarjeta',  'label': 'Número de tarjeta'},
-    {'id': 'Tarjeta débito',  'campo': 'tarjeta',  'label': 'Número de tarjeta'},
-    {'id': 'Efectivo',        'campo': null,        'label': null},
-  ];
+  String _formatoMoneda(double valor) => NumberFormat.currency(
+    locale: 'es_CO',
+    symbol: '\$',
+    decimalDigits: 0,
+  ).format(valor);
 
-  IconData _iconoMetodo(String id) {
-    switch (id) {
-      case 'Nequi':
-      case 'Daviplata':       return Icons.phone_android;
-      case 'PSE':             return Icons.account_balance;
-      case 'Tarjeta crédito':
-      case 'Tarjeta débito':  return Icons.credit_card;
-      default:                return Icons.money;
-    }
-  }
+  static const _metodos = [
+    {'id': 'Nequi', 'campo': 'telefono', 'label': 'Número de teléfono Nequi'},
+    {
+      'id': 'Daviplata',
+      'campo': 'telefono',
+      'label': 'Número de teléfono Daviplata',
+    },
+    {'id': 'PSE', 'campo': 'cuenta', 'label': 'Número de cuenta bancaria'},
+    {'id': 'Tarjeta crédito', 'campo': 'tarjeta', 'label': 'Número de tarjeta'},
+    {'id': 'Tarjeta débito', 'campo': 'tarjeta', 'label': 'Número de tarjeta'},
+    {'id': 'Efectivo', 'campo': null, 'label': null},
+  ];
 
   @override
   void dispose() {
@@ -50,7 +51,7 @@ class _PagoScreenState extends State<PagoScreen> {
   }
 
   Future<void> _confirmarPago() async {
-    final auth    = context.read<AuthService>();
+    final auth = context.read<AuthService>();
     final carrito = context.read<CarritoService>();
 
     setState(() => _procesando = true);
@@ -60,11 +61,11 @@ class _PagoScreenState extends State<PagoScreen> {
         Uri.parse('${AppConstants.baseUrl}/venta'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'idUsuario':   auth.usuario!.idUsuario,
-          'total':       carrito.totalPrecio,
-          'metodoPago':  _metodo,
+          'idUsuario': auth.usuario!.idUsuario,
+          'total': carrito.totalPrecio,
+          'metodoPago': _metodo,
           'detallePago': _detalleCtrl.text.isEmpty ? null : _detalleCtrl.text,
-          'productos':   carrito.items.map((i) => i.toJson()).toList(),
+          'productos': carrito.items.map((i) => i.toJson()).toList(),
         }),
       );
 
@@ -94,18 +95,22 @@ class _PagoScreenState extends State<PagoScreen> {
           ),
         );
 
+        if (!mounted) return;
         carrito.vaciar();
         setState(() => _paso = 3);
       } else {
         final data = jsonDecode(res.body);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(data['message'] ?? 'Error al procesar el pago'),
+            content: Text(
+              data['message'] ?? data['error'] ?? 'Error al procesar el pago',
+            ),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No se pudo conectar al servidor'),
@@ -138,7 +143,7 @@ class _PagoScreenState extends State<PagoScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_paso == 1) _buildResumen(carrito),
-                if (_paso == 2) _buildMetodoPago(),
+                if (_paso == 2) _buildMetodoPago(carrito),
                 if (_paso == 3) _buildConfirmacion(),
               ],
             ),
@@ -158,28 +163,48 @@ class _PagoScreenState extends State<PagoScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 20),
-        ...carrito.items.map((item) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.producto.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text('x${item.cantidad} unidades', style: const TextStyle(fontSize: 12, color: IngenixTheme.textoSec)),
-                ],
-              ),
-              Text('\$${item.subtotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
+        ...carrito.items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.producto.nombre,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'x${item.cantidad} unidades',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: IngenixTheme.textoSec,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '\$${item.subtotal.toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
           ),
-        )),
+        ),
         const Divider(thickness: 2),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Total', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text('\$${carrito.totalPrecio.toStringAsFixed(0)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text(
+              'Total',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              '\$${carrito.totalPrecio.toStringAsFixed(0)}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -196,7 +221,7 @@ class _PagoScreenState extends State<PagoScreen> {
     );
   }
 
-  Widget _buildMetodoPago() {
+  Widget _buildMetodoPago(CarritoService carrito) {
     // Obtener info del método seleccionado
     Map<String, dynamic>? metodoInfo;
     if (_metodo.isNotEmpty) {
@@ -216,7 +241,7 @@ class _PagoScreenState extends State<PagoScreen> {
         ),
         const SizedBox(height: 20),
         ..._metodos.map((m) {
-          final id     = m['id'] as String;
+          final id = m['id'] as String;
           final activo = _metodo == id;
           return GestureDetector(
             onTap: () => setState(() {
@@ -227,10 +252,14 @@ class _PagoScreenState extends State<PagoScreen> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: activo ? IngenixTheme.principal.withAlpha(25) : Colors.white,
+                color: activo
+                    ? IngenixTheme.principal.withAlpha(25)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: activo ? IngenixTheme.principal : const Color(0xFFDDDDDD),
+                  color: activo
+                      ? IngenixTheme.principal
+                      : const Color(0xFFDDDDDD),
                   width: activo ? 2 : 1,
                 ),
               ),
@@ -246,7 +275,7 @@ class _PagoScreenState extends State<PagoScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Icon(_iconoMetodo(id), size: 20, color: IngenixTheme.texto),
+                  _logoMetodo(id),
                   const SizedBox(width: 10),
                   Text(
                     id,
@@ -271,17 +300,46 @@ class _PagoScreenState extends State<PagoScreen> {
           TextField(
             controller: _detalleCtrl,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(hintText: metodoInfo['label'] as String),
+            decoration: InputDecoration(
+              hintText: metodoInfo['label'] as String,
+            ),
           ),
         ],
 
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            color: IngenixTheme.principal.withAlpha(25),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: IngenixTheme.principal.withAlpha(100)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total a pagar:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                _formatoMoneda(carrito.totalPrecio),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+
         const SizedBox(height: 20),
         ElevatedButton(
-          onPressed: _procesando ? null : _confirmarPago,
+          onPressed: _procesando || _metodo.isEmpty ? null : _confirmarPago,
           child: _procesando
               ? const SizedBox(
-                  height: 20, width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Text('Confirmar pago'),
         ),
@@ -294,14 +352,41 @@ class _PagoScreenState extends State<PagoScreen> {
     );
   }
 
+  Widget _logoMetodo(String id) {
+    final asset = switch (id) {
+      'Nequi' => 'assets/images/nequi.svg',
+      'Daviplata' => 'assets/images/daviplata.png',
+      'PSE' => 'assets/images/pse.png',
+      'Tarjeta crédito' => 'assets/images/TC.png',
+      'Tarjeta débito' => 'assets/images/debito.png',
+      _ => 'assets/images/dinero.png',
+    };
+
+    if (asset.endsWith('.svg')) {
+      return SvgPicture.asset(
+        asset,
+        width: 30,
+        height: 24,
+        fit: BoxFit.contain,
+      );
+    }
+    return Image.asset(asset, width: 30, height: 24, fit: BoxFit.contain);
+  }
+
   Widget _buildConfirmacion() {
     return Column(
       children: [
         const Icon(Icons.check_circle, size: 80, color: IngenixTheme.principal),
         const SizedBox(height: 16),
-        const Text('¡Pago exitoso!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const Text(
+          '¡Pago exitoso!',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
-        const Text('Tu pedido fue registrado correctamente.', textAlign: TextAlign.center),
+        const Text(
+          'Tu pedido fue registrado correctamente.',
+          textAlign: TextAlign.center,
+        ),
         if (_referencia.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
