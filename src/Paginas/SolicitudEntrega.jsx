@@ -47,6 +47,7 @@ export default function SolicitudEntrega() {
   const [modalAsignar, setModalAsignar] = useState(null);
   const [tecnicoElegido, setTecnicoElegido] = useState('');
   const [urgenciaElegida, setUrgenciaElegida] = useState('Media');
+  const [accionEntrega, setAccionEntrega] = useState({});
 
   useEffect(() => {
     cargarSolicitudes();
@@ -116,6 +117,11 @@ export default function SolicitudEntrega() {
     } catch (err) {
       console.error('Error al cambiar estado:', err);
     }
+  };
+
+  const elegirAccionEntrega = (solicitud, accion) => {
+    const nuevoEstado = accion === 'almacenado' ? 'Almacenado' : 'Entregado';
+    cambiarEstado(solicitud.idSolicitud, nuevoEstado);
   };
   const asignarCaso = async () => {
     if (!modalAsignar) return;
@@ -208,13 +214,30 @@ export default function SolicitudEntrega() {
           </button>
         )}
 
-        {rol === 'admin' && SIGUIENTE_ESTADO_ADMIN[solicitud.estado] && (
+        {rol === 'admin' && solicitud.estado === 'En revision' && (
           <button
             className="btn-cambiar-estado"
             onClick={() => cambiarEstado(solicitud.idSolicitud, SIGUIENTE_ESTADO_ADMIN[solicitud.estado])}
           >
-            {solicitud.estado === 'En revision' ? 'Aprobar' : 'Confirmar entrega'}
+            Aprobar
           </button>
+        )}
+
+        {rol === 'admin' && solicitud.estado === 'Aprobado' && (
+          <select
+            className="select-accion-entrega"
+            aria-label={`Acción de entrega para la orden ${solicitud.numeroOrden || solicitud.idSolicitud}`}
+            value={accionEntrega[solicitud.idSolicitud] || ''}
+            onChange={(event) => {
+              const accion = event.target.value;
+              setAccionEntrega(prev => ({ ...prev, [solicitud.idSolicitud]: accion }));
+              if (accion) elegirAccionEntrega(solicitud, accion);
+            }}
+          >
+            <option value="">Seleccionar acción</option>
+            <option value="entregado">Confirmar entrega</option>
+            <option value="almacenado">Enviar almacenado</option>
+          </select>
         )}
         
 

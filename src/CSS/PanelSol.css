@@ -60,6 +60,13 @@
   color: var(--color-texto);
 }
 
+.sidebar ul li a.activo {
+  background: var(--color-principal);
+  color: var(--color-texto);
+  font-weight: 700;
+  box-shadow: inset 4px 0 0 #4f8a7e;
+}
+
 .content {
   margin-left: 260px;
   padding: 30px;
@@ -323,4 +330,32 @@
 .tabla-dashboard td:last-child .select-accion-solicitud {
   margin-left: 8px;
   cursor: pointer;
+}
+
+.filtros-almacenado {
+  display: flex;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.filtros-almacenado input,
+.filtros-almacenado select,
+.modal-contenido textarea,
+.modal-contenido select {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgba(92, 150, 144, 0.5);
+  border-radius: 9px;
+  background: #fff;
+  color: #292814;
+  font: inherit;
+}
+
+.filtros-almacenado input {
+  flex: 1;
+}
+
+.modal-contenido textarea {
+  min-height: 90px;
+  resize: vertical;
 }

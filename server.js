@@ -689,9 +689,16 @@ app.get('/api/reportes/mensual', verificarToken, soloAdmin, (req, res) => {
 });
 
 // ─── Solicitud cliente (mantenimiento o venta) ────────────────────────────────
-app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
+app.post('/api/venta', verificarToken, upload.fields([
+    { name: 'imagen', maxCount: 1 },
+    { name: 'imagenFrontal', maxCount: 1 },
+    { name: 'imagenTrasera', maxCount: 1 },
+]), (req, res) => {
     const { tipo, nombreArticulo, descripcion, urgencia, estadoArticulo, precioEstimado } = req.body;
-    const imagenUrl = req.file ? `/uploads/solicitudes/${req.file.filename}` : null;
+    const imagenGeneral = req.files?.imagen?.[0];
+    const imagenFrontal = req.files?.imagenFrontal?.[0];
+    const imagenTrasera = req.files?.imagenTrasera?.[0];
+    const imagenUrl = imagenGeneral ? `/uploads/solicitudes/${imagenGeneral.filename}` : null;
 
     if (!tipo || !nombreArticulo || !descripcion) {
         return res.status(400).json({ error: 'Faltan datos obligatorios' });
@@ -724,7 +731,19 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
                  precioEstimado ? Number(precioEstimado) : null, imagenUrl],
                 (errDetalle) => {
                     if (errDetalle) return res.status(500).json({ error: errDetalle.message });
-                    Promise.all([
+                    const imagenes = [
+                        imagenGeneral && [idSolicitud, 'general', imagenUrl],
+                        imagenFrontal && [idSolicitud, 'frontal', `/uploads/solicitudes/${imagenFrontal.filename}`],
+                        imagenTrasera && [idSolicitud, 'trasera', `/uploads/solicitudes/${imagenTrasera.filename}`],
+                    ].filter(Boolean);
+                    const guardarImagenes = imagenes.length
+                        ? new Promise((resolve, reject) => conexion.query(
+                            'INSERT INTO solicitud_imagen (solicitud_id, tipo, ruta) VALUES ?',
+                            [imagenes],
+                            (error) => error ? reject(error) : resolve()
+                        ))
+                        : Promise.resolve();
+                    guardarImagenes.then(() => Promise.all([
                        crearNotificacion({
                            titulo: 'Nueva solicitud recibida',
                            mensaje: `La solicitud ${ordenGenerada} requiere revisión.`,
@@ -743,7 +762,7 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
                            prioridad: urgenciaFinal === 'Alta' ? 'alta' : 'normal',
                            requiereAccion: true,
                        }),
-                    ])
+                    ]))
                        .then(() => res.status(201).json({
                            message: 'Solicitud enviada correctamente',
                            idSolicitud,
@@ -752,7 +771,7 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), (req, res) => {
                            imagenUrl,
                        }))
                        .catch((notificationError) => {
-                           console.error('❌ Solicitud creada, pero falló la notificación:', notificationError.message);
+                           console.error('❌ Solicitud creada, pero falló un paso posterior:', notificationError.message);
                            res.status(201).json({
                                message: 'Solicitud creada, pero no se pudo enviar la notificación interna.',
                                numeroOrden: ordenGenerada,
@@ -840,8 +859,7 @@ const ejecutarAlmacenadoProgramado = () => {
     conexion.query(
         `UPDATE solicitud
          SET estado = 'Almacenado'
-         WHERE tipodesolicitud_iddesolicitud = 1
-           AND estado = 'Aprobado'
+         WHERE estado = 'Aprobado'
            AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'
          RETURNING idsolicitud, numeroorden, cliente_idcliente`,
         async (error, solicitudesArchivadas) => {
@@ -877,7 +895,7 @@ const ejecutarAlmacenadoProgramado = () => {
                     const notificaciones = [
                         usuarioId && crearNotificacion({
                             titulo: 'Solicitud almacenada',
-                            mensaje: `La solicitud ${numeroOrden || `#${idSolicitud}`} fue almacenada automáticamente después de 30 días.`,
+                            mensaje: `La solicitud ${numeroOrden || `#${idSolicitud}`} fue almacenada automáticamente después de 30 días en estado aprobado.`,
                             tipo: 'sistema',
                             rolDestino: 'cliente',
                             usuarioIds: [usuarioId],

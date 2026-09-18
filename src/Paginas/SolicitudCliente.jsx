@@ -37,7 +37,7 @@ function IconoImagen() {
 // -----------------------------------------------------------------------
 // Subida de imagen opcional (dropzone + preview)
 // -----------------------------------------------------------------------
-function CampoImagen({ archivo, onChange }) {
+function CampoImagen({ archivo, onChange, etiqueta = "Foto del artículo (opcional)", ayuda = "Una foto ayuda a entender mejor tu solicitud, pero no es obligatoria." }) {
   const inputRef = useRef(null);
   const [arrastrando, setArrastrando] = useState(false);
  
@@ -59,10 +59,10 @@ function CampoImagen({ archivo, onChange }) {
     
     <div className="grupo-campo">
 
-      <label>Foto del artículo (opcional)</label>
+      <label>{etiqueta}</label>
       
       <p className="texto-ayuda-campo">
-        Una foto ayuda a entender mejor tu solicitud, pero no es obligatoria.
+        {ayuda}
       </p>
  
       {!archivo ? (
@@ -286,10 +286,20 @@ function FormularioVenta({ datos, setDatos, errores }) {
         />
       </div>
  
-      <CampoImagen
-        archivo={datos.imagen}
-        onChange={(archivo) => setDatos({ ...datos, imagen: archivo })}
-      />
+      <div className="imagenes-venta">
+        <CampoImagen
+          archivo={datos.imagenFrontal}
+          etiqueta="Parte frontal del producto (opcional)"
+          ayuda="Sube una foto clara de la parte frontal del producto."
+          onChange={(archivo) => setDatos({ ...datos, imagenFrontal: archivo })}
+        />
+        <CampoImagen
+          archivo={datos.imagenTrasera}
+          etiqueta="Parte trasera del producto (opcional)"
+          ayuda="Sube una foto clara de la parte trasera del producto."
+          onChange={(archivo) => setDatos({ ...datos, imagenTrasera: archivo })}
+        />
+      </div>
     </>
   );
 }
@@ -304,6 +314,8 @@ const DATOS_INICIALES = {
   estadoArticulo: "",
   precioEstimado: "",
   imagen: null,
+  imagenFrontal: null,
+  imagenTrasera: null,
 };
  
 export default function SolicitudCliente() {
@@ -373,7 +385,12 @@ export default function SolicitudCliente() {
         if (datos.precioEstimado) formData.append("precioEstimado", datos.precioEstimado);
       }
  
-      if (datos.imagen) formData.append("imagen", datos.imagen);
+      if (tipo === "venta") {
+        if (datos.imagenFrontal) formData.append("imagenFrontal", datos.imagenFrontal);
+        if (datos.imagenTrasera) formData.append("imagenTrasera", datos.imagenTrasera);
+      } else if (datos.imagen) {
+        formData.append("imagen", datos.imagen);
+      }
  
       const res = await fetch("http://localhost:3000/api/venta",  {
         method: "POST",
@@ -452,7 +469,7 @@ export default function SolicitudCliente() {
         ) : (
           <div className="tabla-contenedor">
             <table className="tabla-dashboard">
-              <thead><tr><th>Orden</th><th>Artículo / detalle</th><th>Estado</th><th>Fecha</th><th>Total</th></tr></thead>
+              <thead><tr><th>Orden</th><th>Artículo / detalle</th><th>Estado</th><th>Fecha</th><th>Total</th><th>Contraoferta</th></tr></thead>
               <tbody>{misSolicitudes.map((solicitud) => (
                 <tr key={solicitud.idSolicitud}>
                   <td>#{solicitud.numeroOrden || solicitud.idSolicitud}</td>
@@ -460,6 +477,11 @@ export default function SolicitudCliente() {
                   <td>{solicitud.estado}</td>
                   <td>{solicitud.fechaRegistro ? new Date(solicitud.fechaRegistro).toLocaleString('es-CO', { timeZone: 'America/Bogota' }) : '—'}</td>
                   <td>${Number(solicitud.totalEstimado || 0).toLocaleString('es-CO')} COP</td>
+                  <td>{solicitud.contraoferta == null ? 'Pendiente' : (
+                    <span title={solicitud.comentarioContraoferta || ''}>
+                      ${Number(solicitud.contraoferta).toLocaleString('es-CO')} COP
+                    </span>
+                  )}</td>
                 </tr>
               ))}</tbody>
             </table>

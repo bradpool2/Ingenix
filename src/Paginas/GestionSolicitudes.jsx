@@ -6,6 +6,9 @@ export default function GestionSolicitudes({ tipo = 'venta' }) {
   const [cargando, setCargando] = useState(true);
   const [detalle, setDetalle] = useState(null);
   const [precioFinal, setPrecioFinal] = useState('');
+  const [contraoferta, setContraoferta] = useState('');
+  const [comentarioContraoferta, setComentarioContraoferta] = useState('');
+  const [guardandoContraoferta, setGuardandoContraoferta] = useState(false);
 
   const cargar = async () => {
     const respuesta = await authFetch('http://localhost:3000/solicitudes');
@@ -35,7 +38,25 @@ export default function GestionSolicitudes({ tipo = 'venta' }) {
     if (respuesta.ok) {
       setDetalle(datos);
       setPrecioFinal(datos.precioFinal ?? '');
+      setContraoferta(datos.contraoferta ?? '');
+      setComentarioContraoferta(datos.comentarioContraoferta ?? '');
     }
+  };
+
+  const guardarContraoferta = async () => {
+    setGuardandoContraoferta(true);
+    const respuesta = await authFetch(`http://localhost:3000/solicitudes/${detalle.idSolicitud}/contraoferta`, {
+      method: 'POST',
+      body: JSON.stringify({ monto: Number(contraoferta), comentario: comentarioContraoferta }),
+    });
+    const datos = await respuesta.json().catch(() => ({}));
+    setGuardandoContraoferta(false);
+    if (!respuesta.ok) {
+      alert(datos.error || 'No se pudo guardar la contraoferta.');
+      return;
+    }
+    setDetalle({ ...detalle, contraoferta: Number(contraoferta), comentarioContraoferta });
+    alert('Contraoferta enviada al cliente.');
   };
 
   const guardarPrecioFinal = async () => {
@@ -95,12 +116,32 @@ export default function GestionSolicitudes({ tipo = 'venta' }) {
             <p><strong>Descripción:</strong> {detalle.descripcion || '—'}</p>
             <p><strong>Estado del artículo:</strong> {detalle.estadoArticulo || '—'}</p>
             <p><strong>Precio ofrecido por el cliente:</strong> {detalle.precioCliente == null ? 'No especificado' : `$${Number(detalle.precioCliente).toLocaleString('es-CO')} COP`}</p>
+            <div className="seccion-contraoferta">
+              <h4>Contraoferta</h4>
+              <label className="campo-precio-final">
+                Monto propuesto:
+                <input type="number" min="0" value={contraoferta} onChange={(event) => setContraoferta(event.target.value)} />
+              </label>
+              <label className="campo-precio-final">
+                Mensaje para el cliente:
+                <textarea value={comentarioContraoferta} onChange={(event) => setComentarioContraoferta(event.target.value)} placeholder="Explica las condiciones de la oferta." />
+              </label>
+              <button className="btn-precio-final" type="button" disabled={guardandoContraoferta} onClick={guardarContraoferta}>
+                {guardandoContraoferta ? 'Enviando...' : 'Enviar contraoferta'}
+              </button>
+            </div>
             <label className="campo-precio-final">
               Precio final de compra:
               <input type="number" min="0" value={precioFinal} onChange={(event) => setPrecioFinal(event.target.value)} />
             </label>
             <button className="btn-precio-final" type="button" onClick={guardarPrecioFinal}>Guardar precio final</button>
             {detalle.imagen && <img src={`http://localhost:3000${detalle.imagen}`} alt="Artículo de la solicitud" style={{ maxWidth: '100%' }} />}
+            {Array.isArray(detalle.imagenes) && detalle.imagenes.map((imagen) => (
+              <figure key={imagen.tipo}>
+                <figcaption>{imagen.tipo === 'frontal' ? 'Parte frontal' : imagen.tipo === 'trasera' ? 'Parte trasera' : 'Imagen del artículo'}</figcaption>
+                <img src={`http://localhost:3000${imagen.ruta}`} alt={`Parte ${imagen.tipo} del producto`} style={{ maxWidth: '100%' }} />
+              </figure>
+            ))}
           </div>
         </div>
       )}

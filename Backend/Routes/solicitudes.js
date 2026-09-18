@@ -44,6 +44,58 @@ const upload = multer({
     cb(null, true);
   },
 });
+
+conexion.query(`
+  CREATE TABLE IF NOT EXISTS solicitud_almacenado (
+    solicitud_id INTEGER PRIMARY KEY REFERENCES solicitud(idsolicitud) ON DELETE CASCADE,
+    ubicacion VARCHAR(120),
+    nota TEXT,
+    estado_revision VARCHAR(30) NOT NULL DEFAULT 'Pendiente',
+    actualizado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`, (error) => {
+  if (error) console.error('❌ No se pudo preparar solicitud_almacenado:', error.message);
+});
+
+// Estas tablas auxiliares permiten agregar imágenes y contraofertas sin perder
+// las solicitudes creadas con el esquema anterior.
+conexion.query(`
+  CREATE TABLE IF NOT EXISTS solicitud_imagen (
+    id SERIAL PRIMARY KEY,
+    solicitud_id INTEGER NOT NULL REFERENCES solicitud(idsolicitud) ON DELETE CASCADE,
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('frontal', 'trasera', 'general')),
+    ruta TEXT NOT NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (solicitud_id, tipo)
+  )
+`, (error) => {
+  if (error) console.error('❌ No se pudo preparar solicitud_imagen:', error.message);
+});
+
+conexion.query(`
+  CREATE TABLE IF NOT EXISTS contraoferta_solicitud (
+    id SERIAL PRIMARY KEY,
+    solicitud_id INTEGER NOT NULL REFERENCES solicitud(idsolicitud) ON DELETE CASCADE,
+    monto NUMERIC(12, 2) NOT NULL CHECK (monto >= 0),
+    comentario TEXT,
+    usuario_id INTEGER,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`, (error) => {
+  if (error) console.error('❌ No se pudo preparar contraoferta_solicitud:', error.message);
+});
+
+function guardarImagenesSolicitud(idSolicitud, archivos, callback) {
+  const imagenes = Object.entries(archivos || {}).flatMap(([tipo, files]) => (
+    files?.[0] ? [[idSolicitud, tipo, `/uploads/solicitudes/${files[0].filename}`]] : []
+  ));
+  if (imagenes.length === 0) return callback(null);
+  conexion.query(
+    `INSERT INTO solicitud_imagen (solicitud_id, tipo, ruta) VALUES ?`,
+    [imagenes],
+    callback
+  );
+}
 function generarNumeroOrden() {
   const fecha = new Date();
   const yyyymmdd = fecha.toISOString().slice(0, 10).replace(/-/g, '');
@@ -149,6 +201,12 @@ router.get('/solicitudes', verificarToken, soloTecnico, (req, res) => {
       ds.precioestimado AS "precioCliente",
       ds.precio_final AS "precioFinal",
       ds.imagen,
+      COALESCE((SELECT json_agg(json_build_object('tipo', si.tipo, 'ruta', si.ruta)
+        ORDER BY si.tipo) FROM solicitud_imagen si WHERE si.solicitud_id = s.idsolicitud), '[]'::json) AS imagenes,
+      (SELECT co.monto FROM contraoferta_solicitud co
+        WHERE co.solicitud_id = s.idsolicitud ORDER BY co.creado_en DESC LIMIT 1) AS "contraoferta",
+      (SELECT co.comentario FROM contraoferta_solicitud co
+        WHERE co.solicitud_id = s.idsolicitud ORDER BY co.creado_en DESC LIMIT 1) AS "comentarioContraoferta",
       COALESCE(
         STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
         STRING_AGG(ps.detalle_servicio, ', ')
@@ -184,6 +242,10 @@ router.get('/solicitudes/mis-solicitudes', verificarToken, (req, res) => {
       s.urgencia,
       s.total_estimado AS "totalEstimado",
       COALESCE(STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '), '') AS servicios
+      ,(SELECT co.monto FROM contraoferta_solicitud co
+        WHERE co.solicitud_id = s.idsolicitud ORDER BY co.creado_en DESC LIMIT 1) AS "contraoferta"
+      ,(SELECT co.comentario FROM contraoferta_solicitud co
+        WHERE co.solicitud_id = s.idsolicitud ORDER BY co.creado_en DESC LIMIT 1) AS "comentarioContraoferta"
     FROM solicitud s
     INNER JOIN cliente c ON c.idcliente = s.cliente_idcliente
     LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
@@ -209,6 +271,9 @@ router.get('/solicitudes/almacenado', verificarToken, soloTecnico, (req, res) =>
       s.urgencia,
       s.total_estimado AS "totalEstimado",
       clienteUsuario.nombre AS "clienteNombre",
+      sa.ubicacion,
+      sa.nota,
+      sa.estado_revision AS "estadoRevision",
       COALESCE(
         STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
         STRING_AGG(ps.detalle_servicio, ', ')
@@ -218,10 +283,11 @@ router.get('/solicitudes/almacenado', verificarToken, soloTecnico, (req, res) =>
     LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
     LEFT JOIN cliente c ON c.idcliente = s.cliente_idcliente
     LEFT JOIN usuario clienteUsuario ON clienteUsuario.idusuario = c.usuario_idusuario
-    WHERE s.TipoDeSolicitud_idDeSolicitud = 1
-      AND s.estado = 'Almacenado'
+    LEFT JOIN solicitud_almacenado sa ON sa.solicitud_id = s.idsolicitud
+    WHERE s.estado = 'Almacenado'
     GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.estado,
-      s.urgencia, s.total_estimado, clienteUsuario.nombre
+      s.urgencia, s.total_estimado, clienteUsuario.nombre,
+      sa.ubicacion, sa.nota, sa.estado_revision
     ORDER BY s.fecha_registro DESC
   `;
 
@@ -237,8 +303,7 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
   const query = `
     UPDATE solicitud
     SET estado = 'Almacenado'
-    WHERE TipoDeSolicitud_idDeSolicitud = 1
-      AND estado = 'Aprobado'
+    WHERE estado = 'Aprobado'
       AND fecha_registro IS NOT NULL
       AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'
     RETURNING idsolicitud, numeroorden, cliente_idcliente, fecha_registro
@@ -263,6 +328,38 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
             (clienteError, resultados) => clienteError ? reject(clienteError) : resolve(resultados)
           );
         });
+
+        router.put('/solicitudes/:id/almacenado', verificarToken, soloTecnico, (req, res) => {
+          const id = Number(req.params.id);
+          const ubicacion = typeof req.body.ubicacion === 'string' ? req.body.ubicacion.trim() : '';
+          const nota = typeof req.body.nota === 'string' ? req.body.nota.trim() : '';
+          const estadosValidos = ['Pendiente', 'En revisión', 'Listo para publicar'];
+          const estadoRevision = estadosValidos.includes(req.body.estadoRevision)
+            ? req.body.estadoRevision
+            : 'Pendiente';
+
+          if (!Number.isInteger(id) || id < 1) {
+            return res.status(400).json({ error: 'Solicitud inválida.' });
+          }
+
+          conexion.query(
+            `INSERT INTO solicitud_almacenado (solicitud_id, ubicacion, nota, estado_revision, actualizado_en)
+             SELECT idsolicitud, ?, ?, ?, CURRENT_TIMESTAMP
+             FROM solicitud WHERE idsolicitud = ? AND estado = 'Almacenado'
+             ON CONFLICT (solicitud_id) DO UPDATE SET
+               ubicacion = EXCLUDED.ubicacion,
+               nota = EXCLUDED.nota,
+               estado_revision = EXCLUDED.estado_revision,
+               actualizado_en = CURRENT_TIMESTAMP`,
+            [ubicacion || null, nota || null, estadoRevision, id],
+            (error, resultado) => {
+              if (error) return res.status(500).json({ error: error.message });
+              if (resultado.affectedRows === 0) return res.status(404).json({ error: 'Solicitud almacenada no encontrada.' });
+              res.json({ message: 'Ficha de almacenado actualizada.', ubicacion, nota, estadoRevision });
+            }
+          );
+        });
+
         const usuarioId = clientes[0]?.usuarioId;
         const notificaciones = [
           usuarioId && crearNotificacion({
@@ -310,7 +407,11 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
   });
 });
 
-router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
+router.post('/solicitudes/cliente', upload.fields([
+  { name: 'imagen', maxCount: 1 },
+  { name: 'imagenFrontal', maxCount: 1 },
+  { name: 'imagenTrasera', maxCount: 1 },
+]), (req, res) => {
   const { tipo, cliente_idCliente } = req.body;
  
   if (!cliente_idCliente) {
@@ -335,7 +436,10 @@ router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
     tipo === 'mantenimiento' ? TIPO_SOLICITUD.MANTENIMIENTO : TIPO_SOLICITUD.VENTA;
  
   const numeroOrden = generarNumeroOrden();
-  const rutaImagen = req.file ? `/uploads/solicitudes/${req.file.filename}` : null;
+  const imagenGeneral = req.files?.imagen?.[0];
+  const imagenFrontal = req.files?.imagenFrontal?.[0];
+  const imagenTrasera = req.files?.imagenTrasera?.[0];
+  const rutaImagen = imagenGeneral ? `/uploads/solicitudes/${imagenGeneral.filename}` : null;
  
   const precioEstimado =
     tipo === 'venta' && req.body.precioEstimado ? Number(req.body.precioEstimado) : null;
@@ -402,6 +506,15 @@ router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
             return res.status(500).json({ error: errDetalle.message });
           }
  
+          guardarImagenesSolicitud(idSolicitud, {
+            general: imagenGeneral ? [imagenGeneral] : [],
+            frontal: imagenFrontal ? [imagenFrontal] : [],
+            trasera: imagenTrasera ? [imagenTrasera] : [],
+          }, (errImagenes) => {
+            if (errImagenes) {
+              console.error('❌ Error al guardar imágenes de la solicitud:', errImagenes.message);
+              return res.status(500).json({ error: errImagenes.message });
+            }
           Promise.all([
             crearNotificacion({
               titulo: 'Nueva solicitud recibida',
@@ -436,6 +549,7 @@ router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
                 advertencia: true,
               });
             });
+          });
         }
       );
     }
@@ -463,6 +577,12 @@ router.get('/solicitudes/:id', (req, res) => {
       ds.precioestimado AS "precioCliente",
       ds.precio_final AS "precioFinal",
       ds.imagen,
+      COALESCE((SELECT json_agg(json_build_object('tipo', si.tipo, 'ruta', si.ruta)
+        ORDER BY si.tipo) FROM solicitud_imagen si WHERE si.solicitud_id = s.idsolicitud), '[]'::json) AS imagenes,
+      (SELECT co.monto FROM contraoferta_solicitud co
+        WHERE co.solicitud_id = s.idsolicitud ORDER BY co.creado_en DESC LIMIT 1) AS "contraoferta",
+      (SELECT co.comentario FROM contraoferta_solicitud co
+        WHERE co.solicitud_id = s.idsolicitud ORDER BY co.creado_en DESC LIMIT 1) AS "comentarioContraoferta",
       s.observacion_admin AS "observacionAdmin",
       COALESCE(
         STRING_AGG(ds.nombrearticulo || ': ' || ds.descripcion, ', '),
@@ -494,7 +614,7 @@ router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) =>
   const { id } = req.params;
   const { estado, tecnico_asignado, observacion_admin } = req.body;
   const estadosMantenimiento = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Almacenado', 'Cancelado'];
-  const estadosVenta = ['Pendiente', 'En revision', 'Aprobado', 'Cancelado'];
+  const estadosVenta = ['Pendiente', 'En revision', 'Aprobado', 'Entregado', 'Cancelado', 'Almacenado'];
 
   conexion.query(
     'SELECT tipodesolicitud_iddesolicitud AS "tipoSolicitud" FROM solicitud WHERE idsolicitud = ?',
@@ -570,6 +690,26 @@ router.put('/solicitudes/:id/venta', verificarToken, soloTecnico, (req, res) => 
       if (error) return res.status(500).json({ error: error.message });
       if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud de venta o detalle no encontrado' });
       res.json({ message: 'Precio final actualizado correctamente', precioFinal });
+    }
+  );
+});
+
+router.post('/solicitudes/:id/contraoferta', verificarToken, soloTecnico, (req, res) => {
+  const id = Number(req.params.id);
+  const monto = Number(req.body.monto);
+  const comentario = typeof req.body.comentario === 'string' ? req.body.comentario.trim() : null;
+  if (!Number.isInteger(id) || id < 1 || !Number.isFinite(monto) || monto < 0) {
+    return res.status(400).json({ error: 'Indica un monto de contraoferta válido.' });
+  }
+  conexion.query(
+    `INSERT INTO contraoferta_solicitud (solicitud_id, monto, comentario, usuario_id)
+     SELECT idsolicitud, ?, ?, ? FROM solicitud
+     WHERE idsolicitud = ? AND tipodesolicitud_iddesolicitud = 4`,
+    [monto, comentario || null, req.usuario.id, id],
+    (error, result) => {
+      if (error) return res.status(500).json({ error: error.message });
+      if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud de venta no encontrada.' });
+      res.status(201).json({ message: 'Contraoferta enviada correctamente.', monto, comentario });
     }
   );
 });

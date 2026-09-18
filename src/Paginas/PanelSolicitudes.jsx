@@ -13,6 +13,8 @@ const PanelSolicitudes = () => {
   const location = useLocation();
 
   const mostrarDashboard = location.pathname === '/panel_solicitud' || location.pathname === '/panel_solcitud/';
+  const enlaceActivo = (ruta) => location.pathname.toLowerCase().endsWith(`/${ruta.toLowerCase()}`);
+  const claseEnlace = (ruta, adicional = '') => `${adicional} ${enlaceActivo(ruta) ? 'activo' : ''}`.trim();
 
   return (
     <div className="principal">
@@ -21,25 +23,25 @@ const PanelSolicitudes = () => {
         <h2>Panel de Gestión</h2>
         <ul>
           <li>
-            <Link to="/panel_solicitud" className="link-estadisticas">Estadísticas</Link>
+            <Link to="/panel_solicitud" className={`link-estadisticas ${mostrarDashboard ? 'activo' : ''}`}>Estadísticas</Link>
           </li>
           <li>
-            <Link to="mantenimiento">Solicitud Mantenimiento</Link>
+            <Link to="mantenimiento" className={claseEnlace('mantenimiento')}>Solicitud Mantenimiento</Link>
           </li>
           
           {esAdminOTecnico && (
             <li>
-              <Link to="Entrega">Solicitud Entrega</Link>
+              <Link to="Entrega" className={claseEnlace('entrega')}>Solicitud Entrega</Link>
             </li>
           )}
 
           <li>
-            <Link to="Venta">Solicitud Venta</Link>
+            <Link to="Venta" className={claseEnlace('venta')}>Solicitud Venta</Link>
           </li>
 
           {esAdminOTecnico && (
             <li>
-              <Link to="Almacenado">Solicitud Almacenado</Link>
+              <Link to="Almacenado" className={claseEnlace('almacenado')}>Solicitud Almacenado</Link>
             </li>
           )}
         </ul>
