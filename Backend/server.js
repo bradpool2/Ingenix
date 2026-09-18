@@ -250,10 +250,20 @@ app.put('/usuarios/:id', verificarToken, async (req, res) => {
     const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
     try {
         await conexion.query(
-            'UPDATE usuario SET nombre=$1, correo=$2, documento=$3, direccion=$4, telefono=$5, "rol_idRol"=$6 WHERE "idUsuario"=$7',
+            'UPDATE usuario SET nombre=$1, correo=$2, documento=$3, direccion=$4, telefono=$5, rol_idrol=$6 WHERE idusuario=$7',
             [nombre, correo, documento, direccion, telefono, rol_idRol, id]
         );
-        res.json({ message: 'Usuario actualizado con éxito' });
+        const { rows } = await conexion.query(
+            `SELECT idusuario AS "idUsuario", nombre, correo, documento,
+                    telefono, direccion
+             FROM usuario
+             WHERE idusuario = $1`,
+            [id]
+        );
+        res.json({
+            message: 'Usuario actualizado con éxito',
+            usuario: { ...rows[0], rol: req.usuario.rol },
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -411,13 +421,17 @@ app.delete('/categorias/:id', verificarToken, soloAdmin, async (req, res) => {
 app.get('/api/dashboard/estadisticas', async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT COUNT(*) as total_solicitudes, COALESCE(SUM(total_estimado), 0) as suma_total
-             FROM solicitud WHERE DATE(fecha_registro) = CURRENT_DATE`
+            `SELECT
+                COUNT(*) FILTER (WHERE TipoDeSolicitud_idDeSolicitud = 1
+                    AND estado NOT IN ('Entregado', 'Cancelado')) AS mantenimientos,
+                COUNT(*) FILTER (WHERE estado = 'Pendiente') AS entregas_pendientes,
+                COALESCE(SUM(total_estimado), 0) AS suma_total
+             FROM solicitud`
         );
         const datos = rows[0];
         res.json({
-            mantenimientos: `${datos.total_solicitudes} Activos`,
-            entregas: 'Pendientes',
+            mantenimientos: `${datos.mantenimientos || 0} Activos`,
+            entregas: `${datos.entregas_pendientes || 0} Pendientes`,
             totalEstimado: `$${Number(datos.suma_total).toLocaleString('es-CO')}`
         });
     } catch (err) {
@@ -428,8 +442,10 @@ app.get('/api/dashboard/estadisticas', async (req, res) => {
 app.get('/api/dashboard/ultimas-solicitudes', async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT idSolicitud, TO_CHAR(fecha_registro, 'DD/MM/YYYY HH24:MI') AS fecha, total_estimado
-             FROM solicitud WHERE DATE(fecha_registro) = CURRENT_DATE
+            `SELECT idsolicitud AS "idSolicitud", numeroOrden AS "numeroOrden",
+                    estado, TO_CHAR(fecha_registro, 'DD/MM/YYYY HH24:MI') AS fecha,
+                    total_estimado
+             FROM solicitud
              ORDER BY fecha_registro DESC LIMIT 5`
         );
         res.json(rows);
@@ -499,6 +515,13 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res)
     const tipoDeSolicitud = tipo === 'mantenimiento' ? 1 : 4;
     const urgenciaFinal   = tipo === 'mantenimiento' ? (urgencia || 'Media') : 'Media';
     const ordenGenerada   = Math.floor(Math.random() * 90000) + 10000;
+    const totalEstimado = tipo === 'venta' && precioEstimado
+        ? Number(precioEstimado)
+        : 0;
+
+    if (!Number.isFinite(totalEstimado) || totalEstimado < 0) {
+        return res.status(400).json({ error: 'El precio estimado no es válido.' });
+    }
 
     try {
         const clienteResult = await conexion.query(
@@ -515,9 +538,19 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res)
         const idCliente = clienteResult.rows[0].idcliente;
 
         await conexion.query(
-            `INSERT INTO solicitud (idSolicitud, numeroOrden, fecha_registro, cliente_idCliente, estado, TipoDeSolicitud_idDeSolicitud, urgencia)
-             VALUES ($1, $2, NOW(), $3, 'Pendiente', $4, $5)`,
-            [ordenGenerada, String(ordenGenerada), idCliente, tipoDeSolicitud, urgenciaFinal]
+            `INSERT INTO solicitud (
+                idSolicitud, numeroOrden, fecha_registro, cliente_idCliente,
+                estado, TipoDeSolicitud_idDeSolicitud, urgencia, total_estimado
+             )
+             VALUES ($1, $2, NOW(), $3, 'Pendiente', $4, $5, $6)`,
+            [
+                ordenGenerada,
+                String(ordenGenerada),
+                idCliente,
+                tipoDeSolicitud,
+                urgenciaFinal,
+                totalEstimado,
+            ]
         );
 
         const detalle = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}` +

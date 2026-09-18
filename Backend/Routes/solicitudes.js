@@ -116,33 +116,29 @@ router.post('/solicitudes', (req, res) => {
       return res.status(201).json({ message: 'Solicitud guardada correctamente sin servicios' });
     }
 
-    const idProductoAsignado = 22;
+    const idProductoAsignado = 2;
+
+    const detalleServicio = services
+      .map((servicio) => servicio.nombre)
+      .filter(Boolean)
+      .join(', ');
 
     const queryRelacion = `
       INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
       VALUES (?, ?, ?, ?)
     `;
 
-    let completados = 0;
-    let huboError = false;
-
-    services.forEach((servicio) => {
-      conexion.query(
-        queryRelacion,
-        [idProductoAsignado, idSolicitud, 1, servicio.nombre],
-        (errRelacion) => {
-          if (huboError) return;
-          if (errRelacion) {
-            huboError = true;
-            return res.status(500).json({ error: errRelacion.message });
-          }
-          completados++;
-          if (completados === services.length) {
-            res.status(201).json({ message: 'Solicitud guardada correctamente' });
-          }
+    conexion.query(
+      queryRelacion,
+      [idProductoAsignado, idSolicitud, 1, detalleServicio],
+      (errRelacion) => {
+        if (errRelacion) {
+          console.error('❌ Error al relacionar servicios:', errRelacion.message);
+          return res.status(500).json({ error: errRelacion.message });
         }
-      );
-    });
+        res.status(201).json({ message: 'Solicitud guardada correctamente' });
+      }
+    );
   });
 });
 
@@ -150,10 +146,12 @@ router.post('/solicitudes', (req, res) => {
 router.get('/solicitudes', (req, res) => {
   const query = `
     SELECT 
-      s.idSolicitud,
+      s.idSolicitud AS "idSolicitud",
+      s.numeroOrden AS "numeroOrden",
       s.fecha_registro,
       s.total_estimado,
       s.estado,
+      s.urgencia,
       s.nombreTecnico,
       s.tecnico_asignado,
       s.observacion_admin,
@@ -278,10 +276,12 @@ router.get('/solicitudes/:id', (req, res) => {
   const { id } = req.params;
   const query = `
     SELECT 
-      s.idSolicitud,
+      s.idSolicitud AS "idSolicitud",
+      s.numeroOrden AS "numeroOrden",
       s.fecha_registro,
       s.total_estimado,
       s.estado,
+      s.urgencia,
       s.nombreTecnico,
       s.tecnico_asignado,
       s.observacion_admin,

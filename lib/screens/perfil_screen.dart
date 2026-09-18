@@ -81,17 +81,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
       if (!mounted) return;
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final body = jsonDecode(response.body);
-        final updated = body['usuario'] is Map<String, dynamic>
-            ? Usuario.fromJson(body['usuario'])
+        final responseUser = body['usuario'];
+        final updated = responseUser is Map
+            ? Usuario.fromJson({
+                ...Map<String, dynamic>.from(responseUser),
+                'rol': responseUser['rol']?.toString().trim().isNotEmpty == true
+                    ? responseUser['rol']
+                    : user.rol,
+              })
             : Usuario(
-                idUsuario: user.idUsuario,
-                nombre: _nombreCtrl.text.trim(),
-                correo: _correoCtrl.text.trim(),
-                rol: user.rol,
-                telefono: telefono,
-                direccion: _direccionCtrl.text.trim(),
-                documento: _documentoCtrl.text.trim(),
-              );
+                  idUsuario: user.idUsuario,
+                  nombre: _nombreCtrl.text.trim(),
+                  correo: _correoCtrl.text.trim(),
+                  rol: user.rol,
+                  telefono: telefono,
+                  direccion: _direccionCtrl.text.trim(),
+                  documento: _documentoCtrl.text.trim(),
+                );
         auth.actualizarUsuario(updated);
         setState(() => _editando = false);
         _mensaje('Datos actualizados correctamente');

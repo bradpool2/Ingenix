@@ -8,6 +8,7 @@ import '../core/constants.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
 import '../widgets/navbar_widget.dart';
+import '../widgets/panel_sidebar.dart';
 import 'solicitud_cliente_mantenimiento.dart';
 import 'solicitud_cliente_venta.dart';
 
@@ -218,14 +219,15 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
     final auth = context.read<AuthService>();
 
     try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${AppConstants.baseUrl}/api/venta'),
-      )
-        ..headers['Authorization'] = 'Bearer ${auth.token}'
-        ..fields['tipo'] = _tipo!
-        ..fields['nombreArticulo'] = nombre
-        ..fields['descripcion'] = descripcion;
+      final request =
+          http.MultipartRequest(
+              'POST',
+              Uri.parse('${AppConstants.baseUrl}/api/venta'),
+            )
+            ..headers['Authorization'] = 'Bearer ${auth.token}'
+            ..fields['tipo'] = _tipo!
+            ..fields['nombreArticulo'] = nombre
+            ..fields['descripcion'] = descripcion;
 
       if (_tipo == 'mantenimiento') {
         request.fields['urgencia'] = _urgencia;
@@ -281,7 +283,8 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
         await _cargarSolicitudesRecientes();
       } else {
         setState(() {
-            _error = data['error']?.toString() ??
+          _error =
+              data['error']?.toString() ??
               data['message']?.toString() ??
               'No se pudo enviar la solicitud (${response.statusCode}).';
           _enviando = false;
@@ -305,14 +308,19 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
       ),
       child: Scaffold(
         appBar: const NavBarWidget(),
+        drawer: const Drawer(
+          child: SafeArea(
+            child: PanelSidebar(activeRoute: '/solicitud-cliente'),
+          ),
+        ),
         backgroundColor: IngenixTheme.fondo,
         body: LayoutBuilder(
           builder: (context, constraints) {
-            final horizontal = constraints.maxWidth > 900 ? 80.0 : 22.0;
-            return SizedBox.expand(
+            final wide = constraints.maxWidth > 900;
+            final content = SizedBox.expand(
               child: Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: horizontal,
+                  horizontal: wide ? 40 : 22,
                   vertical: 42,
                 ),
                 child: SingleChildScrollView(
@@ -361,6 +369,18 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
                 ),
               ),
             );
+            return wide
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(
+                        width: 218,
+                        child: PanelSidebar(activeRoute: '/solicitud-cliente'),
+                      ),
+                      Expanded(child: content),
+                    ],
+                  )
+                : content;
           },
         ),
       ),
@@ -382,7 +402,8 @@ class _TypeSelector extends StatelessWidget {
           _TypeCard(
             icon: Icons.build_outlined,
             title: 'Mantenimiento',
-            description: 'Reporta un artículo dañado o que necesita reparación.',
+            description:
+                'Reporta un artículo dañado o que necesita reparación.',
             onTap: () => onSelect('mantenimiento'),
           ),
           _TypeCard(
@@ -394,13 +415,7 @@ class _TypeSelector extends StatelessWidget {
         ];
 
         return stacked
-            ? Column(
-                children: [
-                  cards[0],
-                  const SizedBox(height: 14),
-                  cards[1],
-                ],
-              )
+            ? Column(children: [cards[0], const SizedBox(height: 14), cards[1]])
             : Row(
                 children: [
                   Expanded(child: cards[0]),
@@ -572,7 +587,9 @@ class _RecentRequestsSection extends StatelessWidget {
                           color: IngenixTheme.texto,
                           fontWeight: FontWeight.w700,
                         ),
-                        dataTextStyle: const TextStyle(color: IngenixTheme.texto),
+                        dataTextStyle: const TextStyle(
+                          color: IngenixTheme.texto,
+                        ),
                         columns: const [
                           DataColumn(label: Text('Orden')),
                           DataColumn(label: Text('Artículo / detalle')),
@@ -581,9 +598,12 @@ class _RecentRequestsSection extends StatelessWidget {
                           DataColumn(label: Text('Total')),
                         ],
                         rows: items.map((item) {
-                          final estado = item['estado']?.toString() ?? 'Pendiente';
-                          final descripcion = (item['servicios'] ?? '').toString();
-                          final fecha = (item['fecha_registro'] ?? '').toString();
+                          final estado =
+                              item['estado']?.toString() ?? 'Pendiente';
+                          final descripcion = (item['servicios'] ?? '')
+                              .toString();
+                          final fecha = (item['fecha_registro'] ?? '')
+                              .toString();
                           final total = item['total_estimado'] ?? 0;
                           return DataRow(
                             cells: [

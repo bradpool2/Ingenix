@@ -6,6 +6,7 @@ import '../core/constants.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
 import '../widgets/navbar_widget.dart';
+import '../widgets/panel_sidebar.dart';
 
 class SolicitudesAlmacenadasScreen extends StatefulWidget {
   const SolicitudesAlmacenadasScreen({super.key});
@@ -67,69 +68,93 @@ class _SolicitudesAlmacenadasScreenState
         : _items.where((item) => item['estado'] == _filter).toList();
     return Scaffold(
       appBar: const NavBarWidget(),
-      backgroundColor: IngenixTheme.fondo,
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 36),
-          children: [
-            const Text(
-              'Solicitudes almacenadas',
-              style: TextStyle(
-                fontFamily: 'Georgia',
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-                color: IngenixTheme.texto,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Consulta el estado y los detalles de tus solicitudes.',
-              style: TextStyle(color: IngenixTheme.textoSec),
-            ),
-            const SizedBox(height: 24),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children:
-                    [
-                          'Todas',
-                          'Pendiente',
-                          'En proceso',
-                          'Terminado',
-                          'Entregado',
-                          'Cancelado',
-                        ]
-                        .map(
-                          (state) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(state),
-                              selected: _filter == state,
-                              onSelected: (_) =>
-                                  setState(() => _filter = state),
-                            ),
-                          ),
-                        )
-                        .toList(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (_loading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(40),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (_error != null)
-              _ErrorState(message: _error!, onRetry: _load)
-            else if (visible.isEmpty)
-              const _EmptyState()
-            else
-              ...visible.map((item) => _requestCard(item)),
-          ],
+      drawer: const Drawer(
+        child: SafeArea(
+          child: PanelSidebar(activeRoute: '/solicitudes-almacenadas'),
         ),
+      ),
+      backgroundColor: IngenixTheme.fondo,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth > 900;
+          final content = RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 36),
+              children: [
+                const Text(
+                  'Solicitudes almacenadas',
+                  style: TextStyle(
+                    fontFamily: 'Georgia',
+                    fontSize: 34,
+                    fontWeight: FontWeight.bold,
+                    color: IngenixTheme.texto,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Consulta el estado y los detalles de tus solicitudes.',
+                  style: TextStyle(color: IngenixTheme.textoSec),
+                ),
+                const SizedBox(height: 24),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children:
+                        [
+                              'Todas',
+                              'Pendiente',
+                              'En proceso',
+                              'Terminado',
+                              'Entregado',
+                              'Cancelado',
+                            ]
+                            .map(
+                              (state) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(state),
+                                  selected: _filter == state,
+                                  onSelected: (_) =>
+                                      setState(() => _filter = state),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (_loading)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (_error != null)
+                  _ErrorState(message: _error!, onRetry: _load)
+                else if (visible.isEmpty)
+                  const _EmptyState()
+                else
+                  ...visible.map((item) => _requestCard(item)),
+              ],
+            ),
+          );
+          return wide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(
+                      width: 218,
+                      child: PanelSidebar(
+                        activeRoute: '/solicitudes-almacenadas',
+                      ),
+                    ),
+                    Expanded(child: content),
+                  ],
+                )
+              : content;
+        },
       ),
     );
   }
