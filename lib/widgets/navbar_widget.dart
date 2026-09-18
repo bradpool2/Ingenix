@@ -32,6 +32,7 @@ class _NavBarWidgetState extends State<NavBarWidget> {
     final carrito = context.watch<CarritoService>();
     final user = auth.usuario;
     final isWide = MediaQuery.sizeOf(context).width >= 1250;
+    final isNarrow = MediaQuery.sizeOf(context).width < 380;
     final initial = user?.nombre.isNotEmpty == true
         ? user!.nombre.substring(0, 1).toUpperCase()
         : 'I';
@@ -43,8 +44,8 @@ class _NavBarWidgetState extends State<NavBarWidget> {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
-      titleSpacing: 10,
-      leadingWidth: 54,
+      titleSpacing: 2,
+      leadingWidth: 42,
       leading: InkWell(
         onTap: () => context.go(user == null ? '/' : '/home'),
         borderRadius: BorderRadius.circular(24),
@@ -62,14 +63,18 @@ class _NavBarWidgetState extends State<NavBarWidget> {
           ),
         ),
       ),
-      title: Text(
-        user?.nombre ?? 'Ingenix',
-        style: const TextStyle(
-          color: IngenixTheme.texto,
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      title: isNarrow
+          ? const SizedBox.shrink()
+          : Text(
+              user?.nombre ?? 'Ingenix',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: IngenixTheme.texto,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
       actions: user == null
           ? const []
           : isWide
@@ -139,25 +144,16 @@ class _NavBarWidgetState extends State<NavBarWidget> {
               ),
             ]
           : [
-              if (user.esUsuario)
-                badges.Badge(
-                  badgeContent: Text(
-                    carrito.totalItems.toString(),
-                    style: const TextStyle(color: Colors.white, fontSize: 9),
-                  ),
-                  showBadge: carrito.totalItems > 0,
-                  child: IconButton(
-                    tooltip: 'Carrito',
-                    icon: const Icon(Icons.shopping_cart_outlined),
-                    onPressed: () => _abrirCarrito(context),
-                  ),
-                ),
               PopupMenuButton<String>(
                 tooltip: 'Menú',
                 onSelected: (value) => _selectMenu(context, auth, value),
                 itemBuilder: (context) => [
                   const PopupMenuItem(value: 'home', child: Text('Home')),
                   if (user.esUsuario) ...[
+                    PopupMenuItem(
+                      value: 'carrito',
+                      child: Text('Carrito (${carrito.totalItems})'),
+                    ),
                     const PopupMenuItem(
                       value: 'solicitudes',
                       child: Text('Mis solicitudes'),
@@ -226,6 +222,8 @@ class _NavBarWidgetState extends State<NavBarWidget> {
         context.go('/solicitud-cliente');
       case 'catalogo':
         context.go('/catalogo');
+      case 'carrito':
+        _abrirCarrito(context);
       case 'perfil':
         context.go('/perfil');
       case 'salir':

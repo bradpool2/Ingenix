@@ -44,13 +44,29 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: 10 * 1024 * 1024, files: 2 },
     fileFilter: (req, file, cb) => {
         const tiposValidos = ['image/jpeg', 'image/png', 'image/webp'];
         if (tiposValidos.includes(file.mimetype)) cb(null, true);
         else cb(new Error('Tipo de archivo no permitido'));
     }
 });
+
+const cargarImagenesSolicitud = (req, res, next) => {
+    upload.array('imagen', 2)(req, res, (error) => {
+        if (!error) return next();
+
+        const mensaje = error.code === 'LIMIT_FILE_SIZE'
+            ? 'Cada imagen debe pesar máximo 10 MB.'
+            : error.code === 'LIMIT_FILE_COUNT'
+                ? 'Solo puedes cargar máximo 2 imágenes.'
+                : error.message === 'Tipo de archivo no permitido'
+                    ? 'Formato de imagen no permitido. Usa JPG, PNG o WEBP.'
+                    : 'No se pudieron cargar las imágenes.';
+
+        return res.status(400).json({ error: mensaje });
+    });
+};
 
 app.use('/uploads', express.static('uploads'));
 
@@ -505,12 +521,19 @@ app.get('/api/reportes/mensual', verificarToken, soloAdmin, async (req, res) => 
 });
 
 // ─── Solicitud cliente ────────────────────────────────────────────────────────
-app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res) => {
+app.post('/api/venta', verificarToken, cargarImagenesSolicitud, async (req, res) => {
     const { tipo, nombreArticulo, descripcion, urgencia, estadoArticulo, precioEstimado } = req.body;
-    const imagenUrl = req.file ? `/uploads/solicitudes/${req.file.filename}` : null;
+    const imagenes = Array.isArray(req.files) ? req.files : [];
+    const imagenUrls = imagenes.map((file) => `/uploads/solicitudes/${file.filename}`);
+    const imagenUrl = imagenUrls[0] || null;
+    const eliminarImagenes = () => {
+        imagenes.forEach((file) => fs.unlink(file.path, () => {}));
+    };
 
-    if (!tipo || !nombreArticulo || !descripcion)
+    if (!tipo || !nombreArticulo || !descripcion) {
+        eliminarImagenes();
         return res.status(400).json({ error: 'Faltan datos obligatorios' });
+    }
 
     const tipoDeSolicitud = tipo === 'mantenimiento' ? 1 : 4;
     const urgenciaFinal   = tipo === 'mantenimiento' ? (urgencia || 'Media') : 'Media';
@@ -520,6 +543,7 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res)
         : 0;
 
     if (!Number.isFinite(totalEstimado) || totalEstimado < 0) {
+        eliminarImagenes();
         return res.status(400).json({ error: 'El precio estimado no es válido.' });
     }
 
@@ -553,10 +577,11 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res)
             ]
         );
 
-        const detalle = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}` +
+        const detalleCompleto = `[${tipo.toUpperCase()}] ${nombreArticulo}: ${descripcion}` +
             `${estadoArticulo ? ` | Estado: ${estadoArticulo}` : ''}` +
             `${precioEstimado ? ` | Precio estimado: $${precioEstimado}` : ''}` +
-            `${imagenUrl ? ` | Imagen: ${imagenUrl}` : ''}`;
+            `${imagenUrls.length ? ` | Imágenes: ${imagenUrls.join(', ')}` : ''}`;
+        const detalle = detalleCompleto.slice(0, 200);
 
         await conexion.query(
             `INSERT INTO producto_y_solicitud (producto_idProducto, solicitud_idSolicitud, Cantidad, detalle_servicio)
@@ -564,16 +589,10 @@ app.post('/api/venta', verificarToken, upload.single('imagen'), async (req, res)
             [2, ordenGenerada, detalle]
         );
 
-        if (imagenUrl) {
-            await conexion.query(
-                `INSERT INTO detalle_solicitud (solicitud_idSolicitud, nombreArticulo, descripcion, estadoArticulo, precioEstimado, imagen)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [ordenGenerada, nombreArticulo, descripcion, estadoArticulo || null, precioEstimado ? Number(precioEstimado) : null, imagenUrl]
-            );
-        }
-
-        res.status(201).json({ message: 'Solicitud enviada correctamente', numeroOrden: ordenGenerada, tipo, imagenUrl });
+        res.status(201).json({ message: 'Solicitud enviada correctamente', numeroOrden: ordenGenerada, tipo, imagenUrl, imagenUrls });
     } catch (err) {
+        eliminarImagenes();
+        console.error('Error al guardar solicitud de cliente:', err);
         res.status(500).json({ error: err.message });
     }
 });

@@ -251,7 +251,10 @@ class _RoleCardGrid extends StatelessWidget {
             children: [
               for (var index = 0; index < cards.length; index++) ...[
                 if (index > 0) const SizedBox(height: 14),
-                _RoleCard(data: cards[index]),
+                SizedBox(
+                  width: double.infinity,
+                  child: _RoleCard(data: cards[index]),
+                ),
               ],
             ],
           );

@@ -224,6 +224,8 @@ class _ShowcaseCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.sizeOf(context).width < 560;
+
     return FadeTransition(
       opacity: animation,
       child: SlideTransition(
@@ -231,83 +233,124 @@ class _ShowcaseCards extends StatelessWidget {
           begin: const Offset(.045, .04),
           end: Offset.zero,
         ).animate(animation),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 30),
-                child: _FloatingCard(
-                  phase: 0,
-                  floatAnimation: floatAnimation,
-                  child: const _SmallShowcase(
-                    icon: Icons.diamond_outlined,
-                    label: 'Joyas',
+        child: isNarrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _FloatingCard(
+                    phase: 0,
+                    floatAnimation: floatAnimation,
+                    child: const _SmallShowcase(
+                      icon: Icons.diamond_outlined,
+                      label: 'Joyas',
+                    ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: _FloatingCard(
-                phase: 1,
-                floatAnimation: floatAnimation,
-                child: const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: IngenixTheme.fondo,
-                        radius: 22,
-                        child: Icon(
-                          Icons.watch_outlined,
-                          color: IngenixTheme.principal,
-                          size: 22,
+                  const SizedBox(height: 12),
+                  _FloatingCard(
+                    phase: 1,
+                    floatAnimation: floatAnimation,
+                    child: const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: _PrecisionShowcase(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _FloatingCard(
+                    phase: 2,
+                    floatAnimation: floatAnimation,
+                    child: const _SmallShowcase(
+                      icon: Icons.build_outlined,
+                      label: 'Servicio experto',
+                    ),
+                  ),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 30),
+                      child: _FloatingCard(
+                        phase: 0,
+                        floatAnimation: floatAnimation,
+                        child: const _SmallShowcase(
+                          icon: Icons.diamond_outlined,
+                          label: 'Joyas',
                         ),
                       ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Precisión',
-                        style: TextStyle(
-                          color: IngenixTheme.textoSec,
-                          fontSize: 12,
-                          letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: _FloatingCard(
+                      phase: 1,
+                      floatAnimation: floatAnimation,
+                      child: const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: _PrecisionShowcase(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 80),
+                      child: _FloatingCard(
+                        phase: 2,
+                        floatAnimation: floatAnimation,
+                        child: const _SmallShowcase(
+                          icon: Icons.build_outlined,
+                          label: 'Servicio experto',
                         ),
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Tu pieza, en buenas manos.',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 17,
-                          color: IngenixTheme.texto,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 80),
-                child: _FloatingCard(
-                  phase: 2,
-                  floatAnimation: floatAnimation,
-                  child: const _SmallShowcase(
-                    icon: Icons.build_outlined,
-                    label: 'Servicio experto',
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
+    );
+  }
+}
+
+class _PrecisionShowcase extends StatelessWidget {
+  const _PrecisionShowcase();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          backgroundColor: IngenixTheme.fondo,
+          radius: 22,
+          child: Icon(
+            Icons.watch_outlined,
+            color: IngenixTheme.principal,
+            size: 22,
+          ),
+        ),
+        SizedBox(height: 16),
+        Text(
+          'Precisión',
+          style: TextStyle(
+            color: IngenixTheme.textoSec,
+            fontSize: 12,
+            letterSpacing: 1,
+          ),
+        ),
+        SizedBox(height: 6),
+        Text(
+          'Tu pieza, en buenas manos.',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+            color: IngenixTheme.texto,
+            height: 1.3,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -453,7 +496,7 @@ class _ServicesSection extends StatelessWidget {
                     children: [
                       for (var index = 0; index < cards.length; index++) ...[
                         if (index > 0) const SizedBox(height: 14),
-                        cards[index],
+                        SizedBox(width: double.infinity, child: cards[index]),
                       ],
                     ],
                   ),

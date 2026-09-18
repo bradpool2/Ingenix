@@ -11,8 +11,8 @@ class SolicitudClienteMantenimientoForm extends StatefulWidget {
     required this.descripcionController,
     required this.precioController,
     required this.urgencia,
-    required this.imagen,
-    required this.imagenBytes,
+    required this.imagenes,
+    required this.imagenesBytes,
     required this.onUrgenciaChanged,
     required this.onImageTap,
     required this.onBack,
@@ -24,8 +24,8 @@ class SolicitudClienteMantenimientoForm extends StatefulWidget {
   final TextEditingController descripcionController;
   final TextEditingController precioController;
   final String urgencia;
-  final XFile? imagen;
-  final Uint8List? imagenBytes;
+  final List<XFile> imagenes;
+  final List<Uint8List> imagenesBytes;
   final ValueChanged<String> onUrgenciaChanged;
   final VoidCallback onImageTap;
   final VoidCallback onBack;
@@ -122,8 +122,8 @@ class _SolicitudClienteMantenimientoFormState
           ),
           const SizedBox(height: 18),
           _ImageBox(
-            imagen: widget.imagen,
-            imagenBytes: widget.imagenBytes,
+            imagenes: widget.imagenes,
+            imagenesBytes: widget.imagenesBytes,
             onTap: widget.onImageTap,
           ),
           const SizedBox(height: 24),
@@ -216,45 +216,19 @@ class _Campo extends StatelessWidget {
 }
 
 class _ImageBox extends StatelessWidget {
-  const _ImageBox({required this.imagen, required this.imagenBytes, required this.onTap});
+  const _ImageBox({required this.imagenes, required this.imagenesBytes, required this.onTap});
 
-  final XFile? imagen;
-  final Uint8List? imagenBytes;
+  final List<XFile> imagenes;
+  final List<Uint8List> imagenesBytes;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final preview = imagenBytes != null
-        ? Image.memory(
-            imagenBytes!,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-          )
-        : (imagen != null
-            ? Image.file(
-                File(imagen!.path),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-              )
-            : const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.image_outlined, size: 30, color: IngenixTheme.principal),
-                  SizedBox(height: 8),
-                  Text(
-                    'Toca aquí para explorar tus archivos',
-                    style: TextStyle(color: IngenixTheme.textoSec, fontSize: 13),
-                  ),
-                ],
-              ));
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Foto del artículo (opcional)',
+          'Fotos del artículo (opcional, máximo 2)',
           style: TextStyle(
             color: IngenixTheme.texto,
             fontWeight: FontWeight.w700,
@@ -267,24 +241,75 @@ class _ImageBox extends StatelessWidget {
           style: TextStyle(color: IngenixTheme.textoSec, fontSize: 12),
         ),
         const SizedBox(height: 10),
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: 130,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5FAF9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: IngenixTheme.principal),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: preview,
-            ),
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final twoColumns = constraints.maxWidth >= 520;
+            final boxWidth = twoColumns
+                ? (constraints.maxWidth - 10) / 2
+                : constraints.maxWidth;
+
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (var index = 0; index < 2; index++)
+                  _SingleImageBox(
+                    width: boxWidth,
+                    imagen: index < imagenes.length ? imagenes[index] : null,
+                    imagenBytes: index < imagenesBytes.length
+                        ? imagenesBytes[index]
+                        : null,
+                    onTap: imagenes.length < 2 ? onTap : null,
+                    label: 'Foto ${index + 1}',
+                  ),
+              ],
+            );
+          },
         ),
       ],
+    );
+  }
+}
+
+class _SingleImageBox extends StatelessWidget {
+  const _SingleImageBox({required this.width, required this.imagen, required this.imagenBytes, required this.onTap, required this.label});
+
+  final double width;
+  final XFile? imagen;
+  final Uint8List? imagenBytes;
+  final VoidCallback? onTap;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = imagenBytes != null
+        ? Image.memory(imagenBytes!, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+        : imagen != null
+            ? Image.file(File(imagen!.path), fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.image_outlined, size: 30, color: IngenixTheme.principal),
+                  const SizedBox(height: 8),
+                  Text('Toca aquí para agregar $label', style: const TextStyle(color: IngenixTheme.textoSec, fontSize: 13)),
+                ],
+              );
+
+    return SizedBox(
+      width: width,
+      height: 130,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5FAF9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: IngenixTheme.principal),
+          ),
+          child: ClipRRect(borderRadius: BorderRadius.circular(11), child: preview),
+        ),
+      ),
     );
   }
 }

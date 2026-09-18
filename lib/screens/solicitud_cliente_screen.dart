@@ -28,8 +28,8 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
   String? _tipo;
   String _urgencia = 'Media';
   String _estadoArticulo = '';
-  XFile? _imagen;
-  Uint8List? _imagenBytes;
+  final List<XFile> _imagenes = [];
+  final List<Uint8List> _imagenesBytes = [];
   bool _enviando = false;
   String? _error;
   int? _numeroOrden;
@@ -83,8 +83,8 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
       _nombreCtrl.clear();
       _descripcionCtrl.clear();
       _precioCtrl.clear();
-      _imagen = null;
-      _imagenBytes = null;
+      _imagenes.clear();
+      _imagenesBytes.clear();
       _urgencia = 'Media';
       _estadoArticulo = '';
     });
@@ -101,13 +101,14 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
                     descripcionController: _descripcionCtrl,
                     precioController: _precioCtrl,
                     urgencia: _urgencia,
-                    imagen: _imagen,
-                    imagenBytes: _imagenBytes,
+                    imagenes: _imagenes,
+                    imagenesBytes: _imagenesBytes,
                     onUrgenciaChanged: (value) {
                       setState(() => _urgencia = value);
                       setDialogState(() => _urgencia = value);
                     },
                     onImageTap: () async {
+                      if (_imagenes.length >= 2) return;
                       final picked = await _picker.pickImage(
                         source: ImageSource.gallery,
                         imageQuality: 80,
@@ -119,13 +120,10 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
                       if (!mounted) return;
 
                       setState(() {
-                        _imagen = picked;
-                        _imagenBytes = bytes;
+                        _imagenes.add(picked);
+                        _imagenesBytes.add(bytes);
                       });
-                      setDialogState(() {
-                        _imagen = picked;
-                        _imagenBytes = bytes;
-                      });
+                      setDialogState(() {});
                     },
                     onBack: () {
                       Navigator.of(dialogContext).pop();
@@ -145,13 +143,14 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
                     descripcionController: _descripcionCtrl,
                     precioController: _precioCtrl,
                     estadoArticulo: _estadoArticulo,
-                    imagen: _imagen,
-                    imagenBytes: _imagenBytes,
+                    imagenes: _imagenes,
+                    imagenesBytes: _imagenesBytes,
                     onEstadoChanged: (value) {
                       setState(() => _estadoArticulo = value);
                       setDialogState(() => _estadoArticulo = value);
                     },
                     onImageTap: () async {
+                      if (_imagenes.length >= 2) return;
                       final picked = await _picker.pickImage(
                         source: ImageSource.gallery,
                         imageQuality: 80,
@@ -163,13 +162,10 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
                       if (!mounted) return;
 
                       setState(() {
-                        _imagen = picked;
-                        _imagenBytes = bytes;
+                        _imagenes.add(picked);
+                        _imagenesBytes.add(bytes);
                       });
-                      setDialogState(() {
-                        _imagen = picked;
-                        _imagenBytes = bytes;
-                      });
+                      setDialogState(() {});
                     },
                     onBack: () {
                       Navigator.of(dialogContext).pop();
@@ -186,12 +182,17 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
                   );
 
             return Dialog(
-              insetPadding: const EdgeInsets.all(20),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
               backgroundColor: Colors.transparent,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 620),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width - 24,
+                  ),
                   child: formContent,
                 ),
               ),
@@ -240,11 +241,14 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
         }
       }
 
-      if (_imagen != null) {
-        final imagenBytes = _imagenBytes ?? await _imagen!.readAsBytes();
-        final nombreArchivo = _imagen!.name.isNotEmpty
-            ? _imagen!.name
-            : 'imagen_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      for (var index = 0; index < _imagenes.length; index++) {
+        final imagen = _imagenes[index];
+        final imagenBytes = index < _imagenesBytes.length
+            ? _imagenesBytes[index]
+            : await imagen.readAsBytes();
+        final nombreArchivo = imagen.name.isNotEmpty
+          ? imagen.name
+            : 'imagen_${DateTime.now().millisecondsSinceEpoch}_$index.jpg';
         final extension = nombreArchivo.split('.').last.toLowerCase();
         final tipoImagen = switch (extension) {
           'png' => http.MediaType('image', 'png'),
@@ -302,17 +306,23 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.read<AuthService>();
+    final esPersonal = auth.usuario?.esAdmin == true ||
+        auth.usuario?.esTecnico == true;
+
     return Theme(
       data: Theme.of(context).copyWith(
         textTheme: Theme.of(context).textTheme.apply(fontFamily: 'Roboto'),
       ),
       child: Scaffold(
         appBar: const NavBarWidget(),
-        drawer: const Drawer(
-          child: SafeArea(
-            child: PanelSidebar(activeRoute: '/solicitud-cliente'),
-          ),
-        ),
+        drawer: esPersonal
+            ? const Drawer(
+                child: SafeArea(
+                  child: PanelSidebar(activeRoute: '/solicitud-cliente'),
+                ),
+              )
+            : null,
         backgroundColor: IngenixTheme.fondo,
         body: LayoutBuilder(
           builder: (context, constraints) {
@@ -369,7 +379,7 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
                 ),
               ),
             );
-            return wide
+            return wide && esPersonal
                 ? Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -415,7 +425,10 @@ class _TypeSelector extends StatelessWidget {
         ];
 
         return stacked
-            ? Column(children: [cards[0], const SizedBox(height: 14), cards[1]])
+          ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [cards[0], const SizedBox(height: 14), cards[1]],
+            )
             : Row(
                 children: [
                   Expanded(child: cards[0]),
@@ -562,70 +575,135 @@ class _RecentRequestsSection extends StatelessWidget {
           style: TextStyle(color: IngenixTheme.textoSec, fontSize: 14),
         ),
         const SizedBox(height: 18),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: IngenixTheme.blanco,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFDCEAE8)),
-          ),
-          child: items.isEmpty
-              ? const Text(
-                  'Tus solicitudes aparecerán aquí después de enviarlas.',
-                  style: TextStyle(color: IngenixTheme.textoSec),
-                )
-              : SizedBox(
-                  width: double.infinity,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 700),
-                      child: DataTable(
-                        columnSpacing: 24,
-                        headingTextStyle: const TextStyle(
-                          color: IngenixTheme.texto,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        dataTextStyle: const TextStyle(
-                          color: IngenixTheme.texto,
-                        ),
-                        columns: const [
-                          DataColumn(label: Text('Orden')),
-                          DataColumn(label: Text('Artículo / detalle')),
-                          DataColumn(label: Text('Estado')),
-                          DataColumn(label: Text('Fecha')),
-                          DataColumn(label: Text('Total')),
-                        ],
-                        rows: items.map((item) {
-                          final estado =
-                              item['estado']?.toString() ?? 'Pendiente';
-                          final descripcion = (item['servicios'] ?? '')
-                              .toString();
-                          final fecha = (item['fecha_registro'] ?? '')
-                              .toString();
-                          final total = item['total_estimado'] ?? 0;
-                          return DataRow(
-                            cells: [
-                              DataCell(
-                                Text(
-                                  '#${item['numeroOrden'] ?? item['idSolicitud'] ?? '—'}',
-                                ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final mobile = constraints.maxWidth < 700;
+            return Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(mobile ? 12 : 18),
+              decoration: BoxDecoration(
+                color: IngenixTheme.blanco,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFDCEAE8)),
+              ),
+              child: items.isEmpty
+                  ? const Text(
+                      'Tus solicitudes aparecerán aquí después de enviarlas.',
+                      style: TextStyle(color: IngenixTheme.textoSec),
+                    )
+                  : mobile
+                      ? Column(
+                          children: [
+                            for (var index = 0; index < items.length; index++)
+                              _RecentRequestCard(
+                                item: items[index],
+                                showDivider: index < items.length - 1,
                               ),
-                              DataCell(
-                                Text(descripcion.isEmpty ? '—' : descripcion),
-                              ),
-                              DataCell(Text(estado)),
-                              DataCell(Text(fecha.isEmpty ? '—' : fecha)),
-                              DataCell(Text('$total COP')),
+                          ],
+                        )
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            columnSpacing: 24,
+                            headingTextStyle: const TextStyle(
+                              color: IngenixTheme.texto,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            dataTextStyle: const TextStyle(
+                              color: IngenixTheme.texto,
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('Orden')),
+                              DataColumn(label: Text('Artículo / detalle')),
+                              DataColumn(label: Text('Estado')),
+                              DataColumn(label: Text('Fecha')),
+                              DataColumn(label: Text('Total')),
                             ],
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                ),
+                            rows: items.map((item) {
+                              final estado =
+                                  item['estado']?.toString() ?? 'Pendiente';
+                              final descripcion = (item['servicios'] ?? '')
+                                  .toString();
+                              final fecha = (item['fecha_registro'] ?? '')
+                                  .toString();
+                              final total = item['total_estimado'] ?? 0;
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(
+                                    '#${item['numeroOrden'] ?? item['idSolicitud'] ?? '—'}',
+                                  )),
+                                  DataCell(Text(
+                                    descripcion.isEmpty ? '—' : descripcion,
+                                  )),
+                                  DataCell(Text(estado)),
+                                  DataCell(Text(fecha.isEmpty ? '—' : fecha)),
+                                  DataCell(Text('$total COP')),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+            );
+          },
         ),
+      ],
+    );
+  }
+}
+
+class _RecentRequestCard extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final bool showDivider;
+
+  const _RecentRequestCard({required this.item, required this.showDivider});
+
+  @override
+  Widget build(BuildContext context) {
+    final estado = item['estado']?.toString() ?? 'Pendiente';
+    final descripcion = (item['servicios'] ?? '').toString();
+    final fecha = (item['fecha_registro'] ?? '').toString();
+    final total = item['total_estimado'] ?? 0;
+    final orden = item['numeroOrden'] ?? item['idSolicitud'] ?? '—';
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('#$orden', style: const TextStyle(
+                    color: IngenixTheme.texto,
+                    fontWeight: FontWeight.w700,
+                  )),
+                  Text(estado, style: const TextStyle(
+                    color: IngenixTheme.principal,
+                    fontWeight: FontWeight.w700,
+                  )),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                descripcion.isEmpty ? '—' : descripcion,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: IngenixTheme.texto),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${fecha.isEmpty ? 'Sin fecha' : fecha} · $total COP',
+                style: const TextStyle(
+                  color: IngenixTheme.textoSec,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider) const Divider(height: 1),
       ],
     );
   }

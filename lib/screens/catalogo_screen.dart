@@ -269,19 +269,43 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
         : anchoDisponible >= 600
         ? 2
         : 1;
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _filtrados.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columnas,
-        crossAxisSpacing: 30,
-        mainAxisSpacing: 20,
-        childAspectRatio: anchoDisponible < 600 ? 0.82 : 0.86,
-      ),
-      itemBuilder: (_, index) {
-        final producto = _filtrados[index];
-        return Card(
+    if (columnas == 1) {
+      return Column(
+        children: [
+          for (var index = 0; index < _filtrados.length; index++) ...[
+            if (index > 0) const SizedBox(height: 20),
+            _construirTarjetaProducto(_filtrados[index], carrito),
+          ],
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 30.0;
+        final cardWidth =
+            (constraints.maxWidth - spacing * (columnas - 1)) / columnas;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: 20,
+          children: [
+            for (final producto in _filtrados)
+              SizedBox(
+                width: cardWidth,
+                child: _construirTarjetaProducto(producto, carrito),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _construirTarjetaProducto(
+    Producto producto,
+    CarritoService carrito,
+  ) {
+    return Card(
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -297,16 +321,14 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Expanded(
-                  child: Text(
-                    producto.descripcion?.trim().isNotEmpty == true
-                        ? producto.descripcion!
-                        : 'Sin descripción',
-                    textAlign: TextAlign.center,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: IngenixTheme.textoSec),
-                  ),
+                Text(
+                  producto.descripcion?.trim().isNotEmpty == true
+                      ? producto.descripcion!
+                      : 'Sin descripción',
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: IngenixTheme.textoSec),
                 ),
                 if (producto.categorias != null)
                   Text(
@@ -352,7 +374,5 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
             ),
           ),
         );
-      },
-    );
   }
 }
