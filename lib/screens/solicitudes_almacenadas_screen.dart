@@ -20,7 +20,14 @@ class _SolicitudesAlmacenadasScreenState
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
   String? _error;
-  String _filter = 'Todas';
+  String _filter = 'Todos';
+  String _search = '';
+  bool _executing = false;
+  Map<String, dynamic>? _detail;
+  final _searchController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _noteController = TextEditingController();
+  String _reviewState = 'Pendiente';
 
   @override
   void initState() {
@@ -28,11 +35,19 @@ class _SolicitudesAlmacenadasScreenState
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _locationController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     try {
       final auth = context.read<AuthService>();
       final response = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/api/mis-solicitudes'),
+        Uri.parse('${AppConstants.baseUrl}/solicitudes/almacenado'),
         headers: auth.headers,
       );
       if (response.statusCode == 200 && mounted) {
@@ -61,11 +76,144 @@ class _SolicitudesAlmacenadasScreenState
     }
   }
 
+  Future<void> _runAutomaticStorage() async {
+    setState(() => _executing = true);
+    try {
+      final auth = context.read<AuthService>();
+      final response = await http.post(
+        Uri.parse('${AppConstants.baseUrl}/solicitudes/almacenado/ejecutar'),
+        headers: auth.headers,
+      );
+      final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(body['error'] ?? 'No se pudo ejecutar el almacenado.');
+      }
+      if (mounted) setState(() => _error = body['message']?.toString());
+      await _load();
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _executing = false);
+    }
+  }
+
+  void _openDetail(Map<String, dynamic> item) {
+    setState(() {
+      _detail = item;
+      _locationController.text = item['ubicacion']?.toString() ?? '';
+      _noteController.text = item['nota']?.toString() ?? '';
+      _reviewState = item['estadoRevision']?.toString() ?? 'Pendiente';
+    });
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Ficha de inventario #${item['numeroOrden'] ?? item['idSolicitud']}',
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _reviewState,
+                items: const ['Pendiente', 'En revisión', 'Listo para publicar']
+                    .map(
+                      (value) =>
+                          DropdownMenuItem(value: value, child: Text(value)),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => _reviewState = value ?? 'Pendiente'),
+                decoration: const InputDecoration(
+                  labelText: 'Estado de revisión',
+                ),
+              ),
+              TextField(
+                controller: _locationController,
+                decoration: const InputDecoration(
+                  labelText: 'Ubicación física',
+                ),
+              ),
+              TextField(
+                controller: _noteController,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'Notas internas'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+          FilledButton(
+            onPressed: _saveDetail,
+            child: const Text('Guardar ficha'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveDetail() async {
+    final id = _detail?['idSolicitud'];
+    if (id == null) return;
+    final auth = context.read<AuthService>();
+    final response = await http.put(
+      Uri.parse('${AppConstants.baseUrl}/solicitudes/$id/almacenado'),
+      headers: {...auth.headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'ubicacion': _locationController.text.trim(),
+        'nota': _noteController.text.trim(),
+        'estadoRevision': _reviewState,
+      }),
+    );
+    if (!mounted) return;
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      setState(() => _detail = null);
+      Navigator.of(context).pop();
+      await _load();
+    } else {
+      setState(() => _error = 'No se pudo guardar la ficha.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final visible = _filter == 'Todas'
-        ? _items
-        : _items.where((item) => item['estado'] == _filter).toList();
+    final query = _search.trim().toLowerCase();
+    final visible = _items.where((item) {
+      final text = '${item['numeroOrden'] ?? ''} ${item['servicios'] ?? ''}'
+          .toLowerCase();
+      final review = item['estadoRevision']?.toString() ?? 'Pendiente';
+      return text.contains(query) && (_filter == 'Todos' || review == _filter);
+    }).toList();
+    final rows = visible
+        .map<DataRow>(
+          (item) => DataRow(
+            cells: [
+              DataCell(
+                Text('#${item['numeroOrden'] ?? item['idSolicitud'] ?? '-'}'),
+              ),
+              DataCell(
+                Text(item['fechaRegistro']?.toString().split('T').first ?? '-'),
+              ),
+              DataCell(Text(item['servicios']?.toString() ?? '-')),
+              DataCell(Text(item['estadoRevision']?.toString() ?? 'Pendiente')),
+              DataCell(
+                TextButton(
+                  onPressed: () => _openDetail(item),
+                  child: const Text('Ver ficha'),
+                ),
+              ),
+            ],
+          ),
+        )
+        .toList();
     return Scaffold(
       appBar: const NavBarWidget(),
       drawer: const Drawer(
@@ -82,46 +230,62 @@ class _SolicitudesAlmacenadasScreenState
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 36),
               children: [
-                const Text(
-                  'Solicitudes almacenadas',
-                  style: TextStyle(
-                    fontFamily: 'Georgia',
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    color: IngenixTheme.texto,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Consulta el estado y los detalles de tus solicitudes.',
-                  style: TextStyle(color: IngenixTheme.textoSec),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  runSpacing: 12,
+                  children: [
+                    const Text(
+                      'Solicitudes almacenadas',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: IngenixTheme.texto,
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _executing ? null : _runAutomaticStorage,
+                      icon: const Icon(Icons.auto_awesome, size: 17),
+                      label: Text(
+                        _executing ? 'Archivando...' : 'Ejecutar automático',
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children:
-                        [
-                              'Todas',
-                              'Pendiente',
-                              'En proceso',
-                              'Terminado',
-                              'Entregado',
-                              'Cancelado',
-                            ]
-                            .map(
-                              (state) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  label: Text(state),
-                                  selected: _filter == state,
-                                  onSelected: (_) =>
-                                      setState(() => _filter = state),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (value) => setState(() => _search = value),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Buscar por orden o producto',
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: DropdownButton<String>(
+                        value: _filter,
+                        items:
+                            [
+                                  'Todos',
+                                  'Pendiente',
+                                  'En revisión',
+                                  'Listo para publicar',
+                                ]
+                                .map(
+                                  (value) => DropdownMenuItem(
+                                    value: value,
+                                    child: Text(value),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (value) =>
+                            setState(() => _filter = value ?? 'Todos'),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 if (_loading)
@@ -136,7 +300,19 @@ class _SolicitudesAlmacenadasScreenState
                 else if (visible.isEmpty)
                   const _EmptyState()
                 else
-                  ...visible.map((item) => _requestCard(item)),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Orden')),
+                        DataColumn(label: Text('Fecha')),
+                        DataColumn(label: Text('Servicios')),
+                        DataColumn(label: Text('Revisión')),
+                        DataColumn(label: Text('Acciones')),
+                      ],
+                      rows: rows,
+                    ),
+                  ),
               ],
             ),
           );
@@ -155,87 +331,6 @@ class _SolicitudesAlmacenadasScreenState
                 )
               : content;
         },
-      ),
-    );
-  }
-
-  Widget _requestCard(Map<String, dynamic> item) {
-    final state = item['estado']?.toString() ?? 'Pendiente';
-    final order = item['numeroOrden'] ?? item['idSolicitud'] ?? '—';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFDCEAE8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Orden #$order',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: IngenixTheme.texto,
-                  ),
-                ),
-              ),
-              _StatusBadge(state: state),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Servicios: ${item['servicios'] ?? '—'}',
-            style: const TextStyle(color: IngenixTheme.textoSec),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Fecha: ${item['fecha_registro'] ?? item['fecha'] ?? '—'}',
-            style: const TextStyle(color: IngenixTheme.textoSec, fontSize: 13),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Total: \$${item['total_estimado'] ?? 0} COP',
-            style: const TextStyle(
-              color: IngenixTheme.texto,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String state;
-  const _StatusBadge({required this.state});
-  @override
-  Widget build(BuildContext context) {
-    final color = state == 'Terminado' || state == 'Entregado'
-        ? Colors.green
-        : state == 'Cancelado'
-        ? Colors.red
-        : state == 'En proceso'
-        ? Colors.orange
-        : IngenixTheme.textoSec;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        state,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import conexion from '../config/db.js';
+import { verificarToken, soloAdmin, soloTecnico } from '../Middleware/Auth.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -143,7 +144,7 @@ router.post('/solicitudes', (req, res) => {
 });
 
 // Traer todas las solicitudes
-router.get('/solicitudes', (req, res) => {
+router.get('/solicitudes', verificarToken, soloTecnico, (req, res) => {
   const query = `
     SELECT 
       s.idSolicitud AS "idSolicitud",
@@ -154,8 +155,9 @@ router.get('/solicitudes', (req, res) => {
       s.urgencia,
       s.nombreTecnico,
       s.tecnico_asignado,
-      s.observacion_admin,
+      s.observacion_admin AS "observacionAdmin",
       s.cliente_idCliente,
+      s.TipoDeSolicitud_idDeSolicitud AS "tipo",
       GROUP_CONCAT(ps.detalle_servicio SEPARATOR ', ') AS servicios
     FROM solicitud s
     LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
@@ -271,11 +273,52 @@ router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
   );
 });
 
+const estadosAdmin = {
+  Pendiente: ['Cancelado'],
+  'En proceso': ['Cancelado'],
+  Terminado: ['Cancelado'],
+  'En revision': ['Aprobado', 'En proceso', 'Cancelado'],
+  Aprobado: ['Entregado', 'Almacenado'],
+};
+
+// Solicitudes aprobadas que deben pasar al inventario.
+router.get('/solicitudes/almacenado', verificarToken, soloAdmin, async (req, res) => {
+  try {
+    await conexion.query(`
+      ALTER TABLE solicitud
+        ADD COLUMN IF NOT EXISTS ubicacion TEXT,
+        ADD COLUMN IF NOT EXISTS nota TEXT,
+        ADD COLUMN IF NOT EXISTS estado_revision VARCHAR(50)
+    `);
+    await conexion.query(`
+      UPDATE solicitud
+      SET estado = 'Almacenado'
+      WHERE estado = 'Aprobado'
+        AND fecha_registro <= CURRENT_TIMESTAMP - INTERVAL '30 days'
+    `);
+    const { rows } = await conexion.query(`
+      SELECT s.idSolicitud AS "idSolicitud", s.numeroOrden AS "numeroOrden",
+             s.fecha_registro AS "fechaRegistro", s.estado,
+             s.ubicacion, s.nota, s.estado_revision AS "estadoRevision",
+             COALESCE(STRING_AGG(COALESCE(ps.detalle_servicio, ''), ', '), '') AS servicios
+      FROM solicitud s
+      LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
+      WHERE s.estado = 'Almacenado'
+      GROUP BY s.idSolicitud, s.numeroOrden, s.fecha_registro, s.estado,
+               s.ubicacion, s.nota, s.estado_revision
+      ORDER BY s.fecha_registro DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Buscar solicitud por id
 router.get('/solicitudes/:id', (req, res) => {
   const { id } = req.params;
   const query = `
-    SELECT 
+    SELECT
       s.idSolicitud AS "idSolicitud",
       s.numeroOrden AS "numeroOrden",
       s.fecha_registro,
@@ -284,8 +327,9 @@ router.get('/solicitudes/:id', (req, res) => {
       s.urgencia,
       s.nombreTecnico,
       s.tecnico_asignado,
-      s.observacion_admin,
+      s.observacion_admin AS "observacionAdmin",
       s.cliente_idCliente,
+      s.TipoDeSolicitud_idDeSolicitud AS "tipo",
       GROUP_CONCAT(ps.detalle_servicio SEPARATOR ', ') AS servicios
     FROM solicitud s
     LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
@@ -300,36 +344,85 @@ router.get('/solicitudes/:id', (req, res) => {
   });
 });
 
-// Cambiar estado
-router.put('/solicitudes/:id/estado', (req, res) => {
+router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, async (req, res) => {
+  try {
+    const result = await conexion.query(`
+      UPDATE solicitud SET estado = 'Almacenado'
+      WHERE estado = 'Aprobado'
+        AND fecha_registro <= CURRENT_TIMESTAMP - INTERVAL '30 days'
+    `);
+    res.json({ message: `Se archivaron ${result.rowCount} solicitudes.`, archivadas: result.rowCount });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/solicitudes/:id/almacenado', verificarToken, soloAdmin, async (req, res) => {
+  const { ubicacion, nota, estadoRevision } = req.body;
+  try {
+    await conexion.query(`
+      ALTER TABLE solicitud
+        ADD COLUMN IF NOT EXISTS ubicacion TEXT,
+        ADD COLUMN IF NOT EXISTS nota TEXT,
+        ADD COLUMN IF NOT EXISTS estado_revision VARCHAR(50)
+    `);
+    const result = await conexion.query(`
+      UPDATE solicitud
+      SET ubicacion = $1, nota = $2, estado_revision = $3
+      WHERE idSolicitud = $4 AND estado = 'Almacenado'
+    `, [ubicacion || null, nota || null, estadoRevision || 'Pendiente', req.params.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Solicitud almacenada no encontrada.' });
+    res.json({ message: 'Ficha de inventario guardada.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cambiar estado según el rol y la transición permitida.
+router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) => {
   const { id } = req.params;
   const { estado, tecnico_asignado, observacion_admin } = req.body;
 
-  const estadosValidos = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Cancelado'];
+  const estadosValidos = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Almacenado', 'Cancelado'];
   if (!estadosValidos.includes(estado)) {
     return res.status(400).json({ error: 'Estado no válido' });
   }
 
-  let query = `UPDATE solicitud SET estado = ?`;
-  const params = [estado];
+  conexion.query('SELECT estado FROM solicitud WHERE idSolicitud = ?', [id], (errConsulta, resultados) => {
+    if (errConsulta) return res.status(500).json({ error: errConsulta.message });
+    if (resultados.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    const estadoActual = resultados[0].estado;
+    const permitidos = req.usuario?.rol === 'admin'
+      ? estadosAdmin[estadoActual] || []
+      : ({ Pendiente: ['En proceso'], 'En proceso': ['Terminado'], Terminado: ['En revision'] }[estadoActual] || []);
+    if (!permitidos.includes(estado)) {
+      return res.status(403).json({ error: `No se permite pasar de ${estadoActual} a ${estado}.` });
+    }
+    if (req.usuario?.rol === 'admin' && estadoActual === 'En revision' && estado === 'En proceso' && !observacion_admin?.trim()) {
+      return res.status(400).json({ error: 'Debes indicar el motivo de la devolución al técnico.' });
+    }
 
-  if (tecnico_asignado) {
-    query += `, tecnico_asignado = ?`;
-    params.push(tecnico_asignado);
-  }
+    let query = `UPDATE solicitud SET estado = ?`;
+    const params = [estado];
 
-  if (observacion_admin) {
-    query += `, observacion_admin = ?`;
-    params.push(observacion_admin);
-  }
+    if (tecnico_asignado) {
+      query += `, tecnico_asignado = ?`;
+      params.push(tecnico_asignado);
+    }
 
-  query += ` WHERE idSolicitud = ?`;
-  params.push(id);
+    if (observacion_admin) {
+      query += `, observacion_admin = ?`;
+      params.push(observacion_admin);
+    }
 
-  conexion.query(query, params, (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
-    res.json({ message: 'Estado actualizado correctamente' });
+    query += ` WHERE idSolicitud = ?`;
+    params.push(id);
+
+    conexion.query(query, params, (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+      res.json({ message: 'Estado actualizado correctamente' });
+    });
   });
 });
 // Reporte financiero — semana / mes / año
@@ -399,7 +492,7 @@ router.get('/reportes/financiero/totales', (req, res) => {
   });
 });
 // Asignar técnico y/o urgencia (acción del admin)
-router.put('/solicitudes/:id/asignar', (req, res) => {
+router.put('/solicitudes/:id/asignar', verificarToken, soloAdmin, (req, res) => {
   const { id } = req.params;
   const { tecnico_asignado, urgencia } = req.body;
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../core/theme.dart';
+import '../services/auth_service.dart';
 
 class PanelSidebar extends StatelessWidget {
   final String activeRoute;
@@ -14,6 +16,11 @@ class PanelSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final usuario = context.watch<AuthService>().usuario;
+    final esAdmin = usuario?.esAdmin ?? false;
+    final esUsuario = usuario?.esUsuario ?? false;
+    final mostrarAlmacenadas = showStored || esAdmin;
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(18, 26, 14, 20),
@@ -47,13 +54,16 @@ class PanelSidebar extends StatelessWidget {
             route: '/solicitud-entrega',
             active: activeRoute == '/solicitud-entrega',
           ),
-          _PanelLink(
-            icon: Icons.sell_outlined,
-            label: 'Solicitud Venta',
-            route: '/solicitud-cliente',
-            active: activeRoute == '/solicitud-cliente',
-          ),
-          if (showStored)
+          if (esAdmin || esUsuario)
+            _PanelLink(
+              icon: Icons.sell_outlined,
+              label: 'Solicitud Venta',
+              route: esAdmin ? '/solicitud-venta-admin' : '/solicitud-cliente',
+              active:
+                  activeRoute == '/solicitud-cliente' ||
+                  activeRoute == '/solicitud-venta-admin',
+            ),
+          if (mostrarAlmacenadas)
             _PanelLink(
               icon: Icons.inventory_2_outlined,
               label: 'Solicitud Almacenada',

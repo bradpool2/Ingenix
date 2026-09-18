@@ -117,6 +117,81 @@ app.post('/login', async (req, res) => {
     }
 });
 
+// Notificaciones del usuario autenticado.
+app.get('/notificaciones', verificarToken, async (req, res) => {
+    try {
+        const { rows } = await conexion.query(
+            `SELECT n.idnotificacion AS "idNotificacion", n.titulo, n.mensaje,
+                    n.tipo, n.rol_destino AS "rolDestino",
+                    n.idsolicitud AS "idSolicitud", n.prioridad,
+                    n.requiere_accion AS "requiereAccion", n.created_at AS "createdAt",
+                    COALESCE(nu.leida, false) AS leida
+             FROM notificacion_usuario nu
+             JOIN notificacion n ON n.idnotificacion = nu.id_notificacion
+             WHERE nu.id_usuario = $1
+             ORDER BY n.created_at DESC
+             LIMIT 50`,
+            [req.usuario.id]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/notificaciones/:id/leida', verificarToken, async (req, res) => {
+    try {
+        await conexion.query(
+            `UPDATE notificacion_usuario SET leida = true
+             WHERE id_notificacion = $1 AND id_usuario = $2`,
+            [req.params.id, req.usuario.id]
+        );
+        res.json({ message: 'Notificación marcada como leída.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/notificaciones/marcar-todas-leidas', verificarToken, async (req, res) => {
+    try {
+        await conexion.query(
+            'UPDATE notificacion_usuario SET leida = true WHERE id_usuario = $1',
+            [req.usuario.id]
+        );
+        res.json({ message: 'Notificaciones marcadas como leídas.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/notificaciones/:id/accion', verificarToken, soloTecnico, async (req, res) => {
+    const { accion } = req.body;
+    if (accion !== 'aceptar') return res.status(400).json({ message: 'Acción no válida.' });
+    try {
+        const { rows } = await conexion.query(
+            `SELECT n.idsolicitud AS "idSolicitud"
+             FROM notificacion_usuario nu
+             JOIN notificacion n ON n.idnotificacion = nu.id_notificacion
+             WHERE n.idnotificacion = $1 AND nu.id_usuario = $2`,
+            [req.params.id, req.usuario.id]
+        );
+        if (rows.length === 0 || !rows[0].idSolicitud) return res.status(404).json({ message: 'Notificación no encontrada.' });
+        await conexion.query(
+            `UPDATE solicitud SET estado = 'En proceso', tecnico_asignado = $1
+             WHERE idSolicitud = $2 AND estado = 'Pendiente'`,
+            [req.usuario.nombre, rows[0].idSolicitud]
+        );
+        await conexion.query(
+            `UPDATE notificacion_usuario SET leida = true
+             WHERE id_notificacion = $1 AND id_usuario = $2`,
+            [req.params.id, req.usuario.id]
+        );
+        res.json({ message: 'Solicitud aceptada.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Recuperar contraseña ─────────────────────────────────────────────────────
 app.post('/recuperar-password', async (req, res) => {
     const { correo } = req.body;
@@ -220,9 +295,10 @@ app.get('/usuario', async (req, res) => {
 app.get('/usuarios', verificarToken, soloAdmin, async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT u."idUsuario", u.nombre, u.correo, u.documento, u.direccion, u."rol_idRol", r."nombreRol" AS rol
+            `SELECT u.idusuario AS "idUsuario", u.nombre, u.correo, u.documento, u.direccion,
+                    u.rol_idrol AS "rol_idRol", r.nombrerol AS rol
              FROM usuario u
-             LEFT JOIN rol r ON u."rol_idRol" = r."idRol"`
+             LEFT JOIN rol r ON u.rol_idrol = r.idrol`
         );
         res.json(rows);
     } catch (err) {
@@ -233,10 +309,10 @@ app.get('/usuarios', verificarToken, soloAdmin, async (req, res) => {
 app.get('/usuarios/tecnicos', verificarToken, soloAdmin, async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT u."idUsuario", u.nombre
+            `SELECT u.idusuario AS "idUsuario", u.nombre
              FROM usuario u
-             JOIN rol r ON u."rol_idRol" = r."idRol"
-             WHERE r."nombreRol" = 'tecnico'`
+             JOIN rol r ON u.rol_idrol = r.idrol
+             WHERE LOWER(r.nombrerol) = 'tecnico'`
         );
         res.json(rows);
     } catch (err) {
@@ -252,7 +328,7 @@ app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
     try {
         const passEncriptada = await bcrypt.hash(pass, 10);
         const { rows } = await conexion.query(
-            'INSERT INTO usuario (nombre, correo, documento, direccion, pass, "rol_idRol") VALUES ($1, $2, $3, $4, $5, $6) RETURNING "idUsuario"',
+            'INSERT INTO usuario (nombre, correo, documento, direccion, pass, rol_idrol) VALUES ($1, $2, $3, $4, $5, $6) RETURNING idusuario AS "idUsuario"',
             [nombre, correo, documento, direccion, passEncriptada, rol_idRol || 1]
         );
         res.status(201).json({ message: 'Usuario creado con éxito', idUsuario: rows[0].idUsuario });
@@ -261,7 +337,7 @@ app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
     }
 });
 
-app.put('/usuarios/:id', verificarToken, async (req, res) => {
+app.put('/usuarios/:id', verificarToken, soloAdmin, async (req, res) => {
     const { id } = req.params;
     const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
     try {
@@ -287,7 +363,7 @@ app.put('/usuarios/:id', verificarToken, async (req, res) => {
 
 app.delete('/usuarios/:id', verificarToken, soloAdmin, async (req, res) => {
     try {
-        await conexion.query('DELETE FROM usuario WHERE "idUsuario" = $1', [req.params.id]);
+        await conexion.query('DELETE FROM usuario WHERE idusuario = $1', [req.params.id]);
         res.json({ message: 'Usuario eliminado con éxito' });
     } catch (err) {
         res.status(500).json({ error: err.message });

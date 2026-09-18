@@ -1,10 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
 import '../services/auth_service.dart';
 import '../services/carrito_service.dart';
 import '../core/theme.dart';
+import '../core/constants.dart';
 import '../screens/carrito_plegable_screen.dart';
 
 class NavBarWidget extends StatefulWidget implements PreferredSizeWidget {
@@ -19,11 +23,184 @@ class NavBarWidget extends StatefulWidget implements PreferredSizeWidget {
 
 class _NavBarWidgetState extends State<NavBarWidget> {
   OverlayEntry? _carritoOverlay;
+  Timer? _notificationTimer;
+  List<Map<String, dynamic>> _notifications = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadNotifications();
+      _notificationTimer = Timer.periodic(
+        const Duration(seconds: 30),
+        (_) => _loadNotifications(),
+      );
+    });
+  }
 
   @override
   void dispose() {
     _carritoOverlay?.remove();
+    _notificationTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadNotifications() async {
+    final auth = context.read<AuthService>();
+    if (auth.usuario == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConstants.baseUrl}/notificaciones'),
+        headers: auth.headers,
+      );
+      if (!mounted || response.statusCode != 200) return;
+      final data = jsonDecode(response.body);
+      if (data is List) {
+        setState(() {
+          _notifications = data.whereType<Map>().map((item) {
+            final notification = Map<String, dynamic>.from(item);
+            notification['idNotificacion'] ??= notification['idnotificacion'];
+            notification['idSolicitud'] ??= notification['idsolicitud'];
+            notification['requiereAccion'] ??= notification['requiere_accion'];
+            notification['createdAt'] ??= notification['created_at'];
+            return notification;
+          }).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _markNotificationRead(Map<String, dynamic> notification) async {
+    if (notification['leida'] == true) return;
+    final auth = context.read<AuthService>();
+    await http.put(
+      Uri.parse(
+        '${AppConstants.baseUrl}/notificaciones/${notification['idNotificacion']}/leida',
+      ),
+      headers: auth.headers,
+    );
+    if (mounted) {
+      setState(() => notification['leida'] = true);
+    }
+  }
+
+  Future<void> _markAllNotificationsRead() async {
+    final auth = context.read<AuthService>();
+    final response = await http.put(
+      Uri.parse('${AppConstants.baseUrl}/notificaciones/marcar-todas-leidas'),
+      headers: auth.headers,
+    );
+    if (mounted && response.statusCode >= 200 && response.statusCode < 300) {
+      setState(() {
+        for (final notification in _notifications) {
+          notification['leida'] = true;
+        }
+      });
+    }
+  }
+
+  void _openNotification(Map<String, dynamic> notification) {
+    final user = context.read<AuthService>().usuario;
+    final title = notification['titulo']?.toString().toLowerCase() ?? '';
+    Navigator.pop(context);
+    _markNotificationRead(notification);
+    if (title.contains('almacen')) {
+      context.go(
+        user?.esAdmin == true
+            ? '/solicitudes-almacenadas'
+            : '/solicitud-cliente',
+      );
+    } else if (notification['idSolicitud'] != null) {
+      context.go(
+        user?.esAdmin == true || user?.esTecnico == true
+            ? '/solicitud-entrega'
+            : '/solicitud-cliente',
+      );
+    }
+  }
+
+  Widget _notificationButton(BuildContext context) {
+    final unread = _notifications
+        .where((notification) => notification['leida'] != true)
+        .length;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          tooltip: 'Notificaciones',
+          icon: const Icon(Icons.notifications_none_outlined),
+          color: IngenixTheme.texto,
+          onPressed: () => _showNotifications(context),
+        ),
+        if (unread > 0)
+          Positioned(
+            right: 5,
+            top: 4,
+            child: CircleAvatar(
+              radius: 8,
+              backgroundColor: Colors.red,
+              child: Text(
+                '$unread',
+                style: const TextStyle(color: Colors.white, fontSize: 9),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showNotifications(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .7,
+          child: Column(
+            children: [
+              ListTile(
+                title: const Text(
+                  'Notificaciones',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                trailing: TextButton(
+                  onPressed: _markAllNotificationsRead,
+                  child: const Text('Marcar todas'),
+                ),
+              ),
+              Expanded(
+                child: _notifications.isEmpty
+                    ? const Center(child: Text('No tienes notificaciones.'))
+                    : ListView.builder(
+                        itemCount: _notifications.length,
+                        itemBuilder: (context, index) {
+                          final notification = _notifications[index];
+                          return ListTile(
+                            leading: Icon(
+                              notification['leida'] == true
+                                  ? Icons.notifications_none
+                                  : Icons.notifications_active,
+                              color: notification['leida'] == true
+                                  ? IngenixTheme.textoSec
+                                  : IngenixTheme.principal,
+                            ),
+                            title: Text(
+                              notification['titulo']?.toString() ??
+                                  'Notificación',
+                            ),
+                            subtitle: Text(
+                              notification['mensaje']?.toString() ?? '',
+                            ),
+                            onTap: () => _openNotification(notification),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -94,7 +271,7 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                 label: user.esAdmin ? 'Usuarios' : 'Perfil',
                 onTap: () => context.go(user.esAdmin ? '/usuarios' : '/perfil'),
               ),
-              if (user.esTecnico)
+              if (user.esTecnico || user.esAdmin)
                 _NavLink(
                   label: 'Solicitudes',
                   onTap: () => context.go('/panel-solicitudes'),
@@ -118,12 +295,7 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                     onPressed: () => _abrirCarrito(context),
                   ),
                 ),
-              IconButton(
-                tooltip: 'Notificaciones',
-                icon: const Icon(Icons.notifications_none_outlined),
-                color: IngenixTheme.texto,
-                onPressed: () {},
-              ),
+              _notificationButton(context),
               Padding(
                 padding: const EdgeInsets.only(right: 8, left: 2),
                 child: TextButton(
@@ -144,6 +316,20 @@ class _NavBarWidgetState extends State<NavBarWidget> {
               ),
             ]
           : [
+              _notificationButton(context),
+              if (user.esUsuario)
+                badges.Badge(
+                  badgeContent: Text(
+                    carrito.totalItems.toString(),
+                    style: const TextStyle(color: Colors.white, fontSize: 9),
+                  ),
+                  showBadge: carrito.totalItems > 0,
+                  child: IconButton(
+                    tooltip: 'Carrito',
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    onPressed: () => _abrirCarrito(context),
+                  ),
+                ),
               PopupMenuButton<String>(
                 tooltip: 'Menú',
                 onSelected: (value) => _selectMenu(context, auth, value),
@@ -163,6 +349,11 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                       child: Text('Catálogo'),
                     ),
                   ],
+                  if (user.esTecnico || user.esAdmin)
+                    const PopupMenuItem(
+                      value: 'panel',
+                      child: Text('Panel de solicitudes'),
+                    ),
                   const PopupMenuItem(value: 'perfil', child: Text('Perfil')),
                   const PopupMenuDivider(),
                   const PopupMenuItem(
@@ -224,6 +415,8 @@ class _NavBarWidgetState extends State<NavBarWidget> {
         context.go('/catalogo');
       case 'carrito':
         _abrirCarrito(context);
+      case 'panel':
+        context.go('/panel-solicitudes');
       case 'perfil':
         context.go('/perfil');
       case 'salir':

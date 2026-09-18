@@ -184,7 +184,7 @@ class _PanelSidebar extends StatelessWidget {
           _PanelLink(
             icon: Icons.sell_outlined,
             label: 'Solicitud Venta',
-            onTap: () => onNavigate(context, '/solicitud-cliente'),
+            onTap: () => onNavigate(context, '/solicitud-venta-admin'),
           ),
           if (esAdmin)
             _PanelLink(

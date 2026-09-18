@@ -9,13 +9,15 @@ import '../widgets/navbar_widget.dart';
 import '../widgets/panel_sidebar.dart';
 
 class SolicitudEntregaScreen extends StatefulWidget {
-  const SolicitudEntregaScreen({super.key});
+  final bool soloVenta;
+  const SolicitudEntregaScreen({super.key, this.soloVenta = false});
   @override
   State<SolicitudEntregaScreen> createState() => _SolicitudEntregaScreenState();
 }
 
 class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
   List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _technicians = [];
   bool _loading = true;
   String _filter = 'Pendiente';
   String _search = '';
@@ -36,6 +38,7 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
   void initState() {
     super.initState();
     _load();
+    _loadTechnicians();
   }
 
   @override
@@ -54,18 +57,24 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
       if (response.statusCode == 200 && mounted) {
         final data = jsonDecode(response.body);
         setState(
-          () => _items = (data is List ? data : []).whereType<Map>().map((
-            item,
-          ) {
-            final request = Map<String, dynamic>.from(item);
-            // PostgreSQL convierte los alias sin comillas a minúsculas.
-            // Se normalizan aquí para que la vista siempre use las mismas claves.
-            request['idSolicitud'] ??= request['idsolicitud'];
-            request['numeroOrden'] ??= request['numeroorden'];
-            request['tecnicoAsignado'] ??= request['tecnico_asignado'];
-            request['tecnicoNombre'] ??= request['nombretecnico'];
-            return request;
-          }).toList(),
+          () => _items = (data is List ? data : [])
+              .whereType<Map>()
+              .map((item) {
+                final request = Map<String, dynamic>.from(item);
+                // PostgreSQL convierte los alias sin comillas a minúsculas.
+                // Se normalizan aquí para que la vista siempre use las mismas claves.
+                request['idSolicitud'] ??= request['idsolicitud'];
+                request['numeroOrden'] ??= request['numeroorden'];
+                request['tecnicoAsignado'] ??= request['tecnico_asignado'];
+                request['tecnicoNombre'] ??= request['nombretecnico'];
+                request['observacionAdmin'] ??= request['observacion_admin'];
+                return request;
+              })
+              .where(
+                (request) =>
+                    !widget.soloVenta || request['tipo'].toString() == '4',
+              )
+              .toList(),
         );
       }
     } catch (_) {
@@ -74,13 +83,39 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
     }
   }
 
-  Future<void> _changeState(Map<String, dynamic> item, String state) async {
+  Future<void> _loadTechnicians() async {
+    try {
+      final auth = context.read<AuthService>();
+      final response = await http.get(
+        Uri.parse('${AppConstants.baseUrl}/usuarios/tecnicos'),
+        headers: auth.headers,
+      );
+      if (response.statusCode == 200 && mounted) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _technicians = (data is List ? data : [])
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _changeState(
+    Map<String, dynamic> item,
+    String state, {
+    String? observacionAdmin,
+  }) async {
     final id = item['idSolicitud'];
     if (id == null) return;
     final auth = context.read<AuthService>();
     final payload = <String, dynamic>{'estado': state};
     if (item['estado'] == 'Pendiente' && state == 'En proceso') {
       payload['tecnico_asignado'] = auth.usuario?.nombre;
+    }
+    if (observacionAdmin != null) {
+      payload['observacion_admin'] = observacionAdmin;
     }
     final response = await http.put(
       Uri.parse('${AppConstants.baseUrl}/solicitudes/$id/estado'),
@@ -100,6 +135,93 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
     }
   }
 
+  Future<void> _assign(Map<String, dynamic> item) async {
+    String? selectedTechnician = item['tecnicoAsignado']?.toString();
+    final technician = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Asignar técnico'),
+        content: DropdownButtonFormField<String>(
+          initialValue:
+              _technicians.any(
+                (technician) => technician['nombre'] == selectedTechnician,
+              )
+              ? selectedTechnician
+              : null,
+          decoration: const InputDecoration(labelText: 'Técnico'),
+          items: _technicians
+              .map(
+                (technician) => DropdownMenuItem<String>(
+                  value: technician['nombre']?.toString(),
+                  child: Text(technician['nombre']?.toString() ?? 'Sin nombre'),
+                ),
+              )
+              .toList(),
+          onChanged: (value) => selectedTechnician = value,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, selectedTechnician),
+            child: const Text('Asignar'),
+          ),
+        ],
+      ),
+    );
+    if (technician == null || technician.isEmpty || !mounted) return;
+    final auth = context.read<AuthService>();
+    final id = item['idSolicitud'];
+    final response = await http.put(
+      Uri.parse('${AppConstants.baseUrl}/solicitudes/$id/asignar'),
+      headers: {...auth.headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({'tecnico_asignado': technician}),
+    );
+    if (!mounted) return;
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      await _load();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo asignar el técnico')),
+      );
+    }
+  }
+
+  Future<void> _returnToTechnician(Map<String, dynamic> item) async {
+    final reasonController = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Devolver al técnico'),
+        content: TextField(
+          controller: reasonController,
+          autofocus: true,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'Motivo de la devolución',
+            hintText: 'Explica qué debe corregirse.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, reasonController.text.trim()),
+            child: const Text('Devolver'),
+          ),
+        ],
+      ),
+    );
+    reasonController.dispose();
+    if (reason == null || reason.isEmpty || !mounted) return;
+    await _changeState(item, 'En proceso', observacionAdmin: reason);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthService>().usuario;
@@ -116,8 +238,14 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
 
     return Scaffold(
       appBar: const NavBarWidget(),
-      drawer: const Drawer(
-        child: SafeArea(child: PanelSidebar(activeRoute: '/solicitud-entrega')),
+      drawer: Drawer(
+        child: SafeArea(
+          child: PanelSidebar(
+            activeRoute: widget.soloVenta
+                ? '/solicitud-venta-admin'
+                : '/solicitud-entrega',
+          ),
+        ),
       ),
       backgroundColor: IngenixTheme.fondo,
       body: LayoutBuilder(
@@ -148,9 +276,11 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Solicitud de entrega',
-                          style: TextStyle(
+                        Text(
+                          widget.soloVenta
+                              ? 'GestiÃ³n de solicitudes de venta'
+                              : 'Solicitud de entrega',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                             color: IngenixTheme.texto,
@@ -283,6 +413,8 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
                                     isAdmin: isAdmin,
                                     onChange: (state) =>
                                         _changeState(item, state),
+                                    onAssign: () => _assign(item),
+                                    onReturn: () => _returnToTechnician(item),
                                   ),
                                 ),
                               )
@@ -298,9 +430,13 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: 218,
-                      child: PanelSidebar(activeRoute: '/solicitud-entrega'),
+                      child: PanelSidebar(
+                        activeRoute: widget.soloVenta
+                            ? '/solicitud-venta-admin'
+                            : '/solicitud-entrega',
+                      ),
                     ),
                     Expanded(child: content),
                   ],
@@ -316,10 +452,14 @@ class _DeliveryCard extends StatelessWidget {
   final Map<String, dynamic> item;
   final bool isAdmin;
   final ValueChanged<String> onChange;
+  final VoidCallback onAssign;
+  final VoidCallback onReturn;
   const _DeliveryCard({
     required this.item,
     required this.isAdmin,
     required this.onChange,
+    required this.onAssign,
+    required this.onReturn,
   });
   @override
   Widget build(BuildContext context) {
@@ -332,10 +472,11 @@ class _DeliveryCard extends StatelessWidget {
     final total = savedValue != null && savedValue > 0
         ? savedTotal
         : priceInDetail?.group(1) ?? 0;
-    String? actionLabel;
-    String? nextState;
-    IconData? actionIcon;
+    final actions = <Widget>[];
     if (!isAdmin) {
+      String? actionLabel;
+      String? nextState;
+      IconData? actionIcon;
       switch (state) {
         case 'Pendiente':
           actionLabel = 'Tomar solicitud';
@@ -349,6 +490,73 @@ class _DeliveryCard extends StatelessWidget {
           actionLabel = 'Enviar a revisión';
           nextState = 'En revision';
           actionIcon = Icons.send_outlined;
+      }
+      if (actionLabel != null) {
+        actions.add(
+          _actionButton(actionLabel, actionIcon!, () => onChange(nextState!)),
+        );
+      }
+    } else {
+      switch (state) {
+        case 'Pendiente':
+          actions.add(
+            _actionButton('Asignar', Icons.person_add_outlined, onAssign),
+          );
+          actions.add(
+            _actionButton(
+              'Cancelar',
+              Icons.cancel_outlined,
+              () => onChange('Cancelado'),
+            ),
+          );
+        case 'En proceso':
+        case 'Terminado':
+          actions.add(
+            _actionButton(
+              'Cancelar',
+              Icons.cancel_outlined,
+              () => onChange('Cancelado'),
+            ),
+          );
+        case 'En revision':
+          actions.add(
+            _actionButton(
+              'Aprobar',
+              Icons.check_circle_outline,
+              () => onChange('Aprobado'),
+            ),
+          );
+          actions.add(
+            _actionButton('Devolver al técnico', Icons.undo_outlined, onReturn),
+          );
+          actions.add(
+            _actionButton(
+              'Cancelar',
+              Icons.cancel_outlined,
+              () => onChange('Cancelado'),
+            ),
+          );
+        case 'Aprobado':
+          actions.add(
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Acción de aprobación',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'Entregado',
+                  child: Text('Confirmar entrega'),
+                ),
+                DropdownMenuItem(
+                  value: 'Almacenado',
+                  child: Text('Enviar almacenado'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) onChange(value);
+              },
+            ),
+          );
       }
     }
     return Container(
@@ -390,6 +598,8 @@ class _DeliveryCard extends StatelessWidget {
             'Técnico asignado',
             item['tecnicoNombre'] ?? item['tecnicoAsignado'] ?? '—',
           ),
+          if ((item['observacionAdmin']?.toString() ?? '').trim().isNotEmpty)
+            _line('Mensaje del administrador', item['observacionAdmin']),
           _line('Fecha', item['fecha_registro'] ?? item['fecha'] ?? '—'),
           _line('Servicios', item['servicios'] ?? '—'),
           const Padding(
@@ -397,27 +607,7 @@ class _DeliveryCard extends StatelessWidget {
             child: Divider(height: 1, color: Color(0xFFE5EEEE)),
           ),
           _line('Total', '\$$total COP'),
-          if (actionLabel != null) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              height: 38,
-              child: ElevatedButton.icon(
-                onPressed: () => onChange(nextState!),
-                icon: Icon(actionIcon, size: 16),
-                label: Text(actionLabel),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: Size.zero,
-                  elevation: 0,
-                  foregroundColor: IngenixTheme.texto,
-                  textStyle: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          if (actions.isNotEmpty) ...[const SizedBox(height: 10), ...actions],
         ],
       ),
     );
@@ -430,6 +620,29 @@ class _DeliveryCard extends StatelessWidget {
       style: const TextStyle(color: IngenixTheme.textoSec, fontSize: 12),
     ),
   );
+
+  Widget _actionButton(String label, IconData icon, VoidCallback onPressed) =>
+      Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: SizedBox(
+          width: double.infinity,
+          height: 38,
+          child: ElevatedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 16),
+            label: Text(label),
+            style: ElevatedButton.styleFrom(
+              minimumSize: Size.zero,
+              elevation: 0,
+              foregroundColor: IngenixTheme.texto,
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _StatusBadge extends StatelessWidget {
