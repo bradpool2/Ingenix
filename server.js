@@ -405,8 +405,9 @@ app.put('/usuarios/:id', verificarToken, (req, res) => {
     if (!id || !nombre?.trim() || !correo?.trim()) {
         return res.status(400).json({ message: 'ID, nombre y correo son obligatorios.' });
     }
-    if (!/^\d{10}$/.test(String(telefono || ''))) {
-        return res.status(400).json({ message: 'El teléfono debe tener exactamente 10 dígitos.' });
+    const telefonoNormalizado = String(telefono ?? '').replace(/\D/g, '');
+    if (telefonoNormalizado.length > 10) {
+        return res.status(400).json({ message: 'El teléfono no puede tener más de 10 dígitos.' });
     }
 
     conexion.query(
@@ -414,7 +415,7 @@ app.put('/usuarios/:id', verificarToken, (req, res) => {
          SET nombre = ?, correo = ?, documento = ?, direccion = ?, telefono = ?,
              rol_idrol = COALESCE(?, rol_idrol)
          WHERE idusuario = ?`,
-        [nombre, correo, documento, direccion, telefono, rol_idRol || null, id],
+        [nombre, correo, documento, direccion, telefonoNormalizado, rol_idRol || null, id],
         (err) => {
             if (err) return res.status(500).json({ error: err.message });
             conexion.query(
@@ -430,12 +431,12 @@ app.put('/usuarios/:id', verificarToken, (req, res) => {
                     if (crearPerfilError) return res.status(500).json({ error: crearPerfilError.message });
                     conexion.query(
                         'UPDATE cliente SET telefono = ?, direccion = ?, documento = ? WHERE usuario_idusuario = ?',
-                        [telefono, direccion, documento, id],
+                        [telefonoNormalizado, direccion, documento, id],
                         (perfilError) => {
                             if (perfilError) return res.status(500).json({ error: perfilError.message });
                             res.json({
                                 message: 'Usuario actualizado con éxito',
-                                usuario: { idUsuario: Number(id), nombre, correo, documento, direccion, telefono, rol_idRol },
+                                usuario: { idUsuario: Number(id), nombre, correo, documento, direccion, telefono: telefonoNormalizado, rol_idRol },
                             });
                         }
                     );

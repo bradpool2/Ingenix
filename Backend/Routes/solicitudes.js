@@ -178,9 +178,13 @@ router.post('/solicitudes', (req, res) => {
 router.get('/solicitudes', verificarToken, soloTecnico, (req, res) => {
   const params = [];
   const filtroTecnico = req.usuario.rol === 'tecnico'
-    ? 'WHERE s.tecnico_asignado = ?'
+    ? 'WHERE (s.estado = ? OR s.tecnico_asignado = ? OR s.tecnico_asignado = ? OR u.nombre = ? )'
     : '';
-  if (filtroTecnico) params.push(String(req.usuario.id));
+  if (filtroTecnico) {
+    const userId = String(req.usuario.id ?? '');
+    const userName = req.usuario.nombre || '';
+    params.push('Pendiente', userId, userId, userName);
+  }
   const query = `
     SELECT 
       s.idsolicitud AS "idSolicitud",

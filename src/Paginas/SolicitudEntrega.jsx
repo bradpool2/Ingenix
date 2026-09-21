@@ -51,8 +51,10 @@ export default function SolicitudEntrega() {
 
   useEffect(() => {
     cargarSolicitudes();
-    cargarTecnicos();
-  }, []);
+    if (rol === 'admin') {
+      cargarTecnicos();
+    }
+  }, [rol]);
   
   const cargarTecnicos = async () => {
     try {
@@ -155,7 +157,44 @@ export default function SolicitudEntrega() {
     return ['Pendiente', 'En proceso', 'Terminado'];
   };
 
-  const solicitudesFiltradas = solicitudes.filter(s => s.estado === filtro);
+  const esMiSolicitud = (solicitud) => {
+    if (rol !== 'tecnico') return true;
+    const idTecnicoActual = String(usuario?.id ?? usuario?.idUsuario ?? usuario?.idusuario ?? '');
+    const nombreTecnicoActual = String(usuario?.nombre || usuario?.user || '');
+    return (
+      String(solicitud.tecnicoAsignado ?? '') === idTecnicoActual ||
+      String(solicitud.tecnicoNombre ?? '') === nombreTecnicoActual
+    );
+  };
+
+  const esSolicitudVisibleParaTecnico = (solicitud) => {
+    if (rol !== 'tecnico') return true;
+    if (solicitud.estado === 'Pendiente') return true;
+    return esMiSolicitud(solicitud);
+  };
+
+  const solicitudesFiltradas = solicitudes.filter(s => {
+    if (rol === 'tecnico' && !esSolicitudVisibleParaTecnico(s)) return false;
+    if (rol === 'tecnico') {
+      if (filtro === 'Pendiente') return s.estado === 'Pendiente';
+      if (filtro === 'En proceso') return s.estado === 'En proceso' && esMiSolicitud(s);
+      if (filtro === 'Terminado') return s.estado === 'Terminado' && esMiSolicitud(s);
+      return false;
+    }
+    return s.estado === filtro;
+  });
+
+  const contarSolicitudesPorEstado = (estado) => {
+    if (rol !== 'tecnico') {
+      return solicitudes.filter(s => s.estado === estado).length;
+    }
+
+    if (estado === 'Pendiente') {
+      return solicitudes.filter(s => s.estado === 'Pendiente').length;
+    }
+
+    return solicitudes.filter(s => s.estado === estado && esMiSolicitud(s)).length;
+  };
 
   const TarjetaSolicitud = ({ solicitud }) => (
     <div className="tarjeta-entrega">
@@ -292,7 +331,7 @@ export default function SolicitudEntrega() {
       >
         <option value="">Selecciona un técnico</option>
         {tecnicos.map(t => (
-          <option key={t.idUsuario} value={t.nombre}>{t.nombre}</option>
+          <option key={t.idUsuario} value={String(t.idUsuario)}>{t.nombre}</option>
         ))}
       </select>
 
@@ -383,7 +422,7 @@ export default function SolicitudEntrega() {
           >
             {e}
             <span className="filtro-count">
-              {solicitudes.filter(s => s.estado === e).length}
+              {contarSolicitudesPorEstado(e)}
             </span>
           </button>
         ))}

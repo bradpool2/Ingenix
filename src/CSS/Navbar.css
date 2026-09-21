@@ -284,8 +284,9 @@ transition: all 0.3s ease;
 }
 
 .notificacion-toast {
-  position: fixed;
-  right: 22px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
   bottom: 22px;
   z-index: 1200;
   display: flex;
@@ -295,8 +296,34 @@ transition: all 0.3s ease;
   padding: 15px;
   border: 1px solid rgba(153, 193, 187, .45);
   border-radius: 12px;
+
+.notificacion-item-content {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.notificacion-cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.notificacion-cabecera strong {
+  margin: 0;
+  flex: 1;
+  line-height: 1.35;
+}
+
+.notificacion-mensaje {
+  display: block;
+  line-height: 1.45;
+  word-break: break-word;
+}
   background: white;
-  color: #292814;
+  width: fit-content;
+  margin-top: 2px;
   box-shadow: 0 15px 35px rgba(41, 40, 20, .2);
   cursor: pointer;
   text-align: left;

@@ -137,7 +137,7 @@ export default function Usuarios_Crud() {
             <option value="4">Cliente</option>
           </select>
         </div>
-        <button type="submit" className="btn-crear">Agregar Usuario</button>
+        <button type="submit" className="btn-crear">gar Usuario</button>
       </form>
 
       <hr className="divisor" />

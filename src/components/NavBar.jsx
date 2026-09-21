@@ -77,14 +77,13 @@
     };
 
     const abrirNotificacion = (notificacion) => {
+      const rutaDetalleTecnico = '/panel_solicitud/Entrega';
       if (notificacion.titulo?.toLowerCase().includes('almacen')) {
         navigate(rol === 'cliente' || rol === 'usuario'
           ? '/Solicitud_Cliente'
           : '/panel_solicitud/Almacenado');
       } else if (notificacion.idsolicitud) {
-        navigate(rol === 'cliente' || rol === 'usuario'
-          ? '/Solicitud_Cliente'
-          : '/panel_solicitud');
+        navigate(rol === 'tecnico' ? rutaDetalleTecnico : (rol === 'cliente' || rol === 'usuario' ? '/Solicitud_Cliente' : '/panel_solicitud'));
       }
     };
 
@@ -210,14 +209,18 @@
                   role="button"
                   tabIndex="0"
                 >
-                  <span className={`notificacion-prioridad ${notificacion.prioridad}`}>
-                    {notificacion.prioridad}
-                  </span>
-                  <strong>{notificacion.titulo}</strong>
-                  <span>{notificacion.mensaje}</span>
-                  <small>
-                    {new Date(notificacion.created_at).toLocaleString('es-CO')}
-                  </small>
+                  <div className="notificacion-item-content">
+                    <div className="notificacion-cabecera">
+                      <span className={`notificacion-prioridad ${notificacion.prioridad}`}>
+                        {notificacion.prioridad}
+                      </span>
+                      <strong>{notificacion.titulo}</strong>
+                    </div>
+                    <span className="notificacion-mensaje">{notificacion.mensaje}</span>
+                    <small>
+                      {new Date(notificacion.created_at).toLocaleString('es-CO')}
+                    </small>
+                  </div>
                   {notificacion.requiere_accion && rol === 'tecnico' && !notificacion.leida && (
                     <span className="notificacion-actions">
                       <button onClick={(event) => ejecutarAccion(event, notificacion, 'aceptar')}>
@@ -226,7 +229,7 @@
                       {notificacion.idsolicitud && (
                         <button onClick={(event) => {
                           event.stopPropagation();
-                          navigate('/panel_solicitud');
+                          navigate('/panel_solicitud/Entrega');
                         }}>
                           Ver detalles
                         </button>

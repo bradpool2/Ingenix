@@ -84,21 +84,30 @@ router.put('/notificaciones/:id/accion', verificarToken, (req, res) => {
   }[accion];
 
   conexion.query(
-    `SELECT n.idsolicitud
+    `SELECT n.idsolicitud, s.tecnico_asignado AS tecnicoAsignado
      FROM notificacion_usuario nu
      INNER JOIN notificacion n ON n.idnotificacion = nu.id_notificacion
+     INNER JOIN solicitud s ON s.idsolicitud = n.idsolicitud
      WHERE n.idnotificacion = ? AND nu.id_usuario = ?`,
     [req.params.id, req.usuario.id],
     (error, notificaciones) => {
       if (error) return enviarError(res, error);
       const idSolicitud = notificaciones[0]?.idsolicitud;
+      const tecnicoAsignadoActual = notificaciones[0]?.tecnicoAsignado;
       if (!idSolicitud) return res.status(404).json({ message: 'Solicitud asociada no encontrada.' });
+
+      const tecnicoActual = String(req.usuario.id ?? req.usuario.idUsuario ?? req.usuario.idusuario ?? '');
+      const yaFueTomadaPorOtroTecnico = !!tecnicoAsignadoActual && String(tecnicoAsignadoActual).trim() !== '' && String(tecnicoAsignadoActual) !== tecnicoActual;
+
+      if (yaFueTomadaPorOtroTecnico) {
+        return res.status(409).json({ message: 'La solicitud ya fue tomada por otro técnico.' });
+      }
 
       conexion.query(
         `UPDATE solicitud
          SET estado = ?, tecnico_asignado = ?
-         WHERE idsolicitud = ? AND (tecnico_asignado IS NULL OR tecnico_asignado = '')`,
-        [estado, req.usuario.id, idSolicitud],
+         WHERE idsolicitud = ? AND (tecnico_asignado IS NULL OR tecnico_asignado = '' OR tecnico_asignado = ?)`,
+        [estado, req.usuario.id, idSolicitud, tecnicoActual],
         (updateError, resultado) => {
           if (updateError) return enviarError(res, updateError);
           if (resultado.affectedRows === 0) {
