@@ -25,6 +25,7 @@ class _NavBarWidgetState extends State<NavBarWidget> {
   OverlayEntry? _carritoOverlay;
   Timer? _notificationTimer;
   List<Map<String, dynamic>> _notifications = [];
+  String _notificationSearch = '';
 
   @override
   void initState() {
@@ -82,6 +83,15 @@ class _NavBarWidgetState extends State<NavBarWidget> {
     if (mounted) {
       setState(() => notification['leida'] = true);
     }
+  }
+
+  List<Map<String, dynamic>> get _filteredNotifications {
+    if (_notificationSearch.isEmpty) return _notifications;
+    return _notifications.where((notification) {
+      final content = '${notification['titulo'] ?? ''} ${notification['mensaje'] ?? ''}'
+          .toLowerCase();
+      return content.contains(_notificationSearch);
+    }).toList();
   }
 
   Future<void> _markAllNotificationsRead() async {
@@ -150,14 +160,15 @@ class _NavBarWidgetState extends State<NavBarWidget> {
   }
 
   void _showNotifications(BuildContext context) {
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .7,
-          child: Column(
-            children: [
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(20),
+        child: SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .7,
+            child: Column(
+              children: [
               ListTile(
                 title: const Text(
                   'Notificaciones',
@@ -168,13 +179,26 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                   child: const Text('Marcar todas'),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: TextField(
+                  onChanged: (value) => setState(
+                    () => _notificationSearch = value.trim().toLowerCase(),
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar notificaciones',
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                  ),
+                ),
+              ),
               Expanded(
-                child: _notifications.isEmpty
+                child: _filteredNotifications.isEmpty
                     ? const Center(child: Text('No tienes notificaciones.'))
                     : ListView.builder(
-                        itemCount: _notifications.length,
+                        itemCount: _filteredNotifications.length,
                         itemBuilder: (context, index) {
-                          final notification = _notifications[index];
+                          final notification = _filteredNotifications[index];
                           return ListTile(
                             leading: Icon(
                               notification['leida'] == true
@@ -196,7 +220,8 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                         },
                       ),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -268,8 +293,8 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                   onTap: () => context.go('/catalogo'),
                 ),
               _NavLink(
-                label: user.esAdmin ? 'Usuarios' : 'Perfil',
-                onTap: () => context.go(user.esAdmin ? '/usuarios' : '/perfil'),
+                label: 'Perfil',
+                onTap: () => context.go('/perfil'),
               ),
               if (user.esTecnico || user.esAdmin)
                 _NavLink(

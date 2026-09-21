@@ -1,5 +1,9 @@
 import pg from 'pg';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import fs from 'fs';
+
+const envPath = process.env.ENV_FILE || (fs.existsSync('.env.Front') ? '.env.Front' : '.env');
+dotenv.config({ path: envPath });
 
 const { Pool } = pg;
 const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;

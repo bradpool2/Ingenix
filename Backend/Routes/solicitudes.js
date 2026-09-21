@@ -157,11 +157,14 @@ router.get('/solicitudes', verificarToken, soloTecnico, (req, res) => {
       s.tecnico_asignado,
       s.observacion_admin AS "observacionAdmin",
       s.cliente_idCliente,
+      COALESCE(u.nombre, 'Sin cliente asociado') AS "clienteNombre",
       s.TipoDeSolicitud_idDeSolicitud AS "tipo",
       GROUP_CONCAT(ps.detalle_servicio SEPARATOR ', ') AS servicios
     FROM solicitud s
+    LEFT JOIN cliente c ON c.idcliente = s.cliente_idCliente
+    LEFT JOIN usuario u ON u.idusuario = c.usuario_idusuario
     LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
-    GROUP BY s.idSolicitud
+    GROUP BY s.idSolicitud, u.nombre
     ORDER BY s.fecha_registro DESC
   `;
 
@@ -329,12 +332,15 @@ router.get('/solicitudes/:id', (req, res) => {
       s.tecnico_asignado,
       s.observacion_admin AS "observacionAdmin",
       s.cliente_idCliente,
+      COALESCE(u.nombre, 'Sin cliente asociado') AS "clienteNombre",
       s.TipoDeSolicitud_idDeSolicitud AS "tipo",
       GROUP_CONCAT(ps.detalle_servicio SEPARATOR ', ') AS servicios
     FROM solicitud s
+    LEFT JOIN cliente c ON c.idcliente = s.cliente_idCliente
+    LEFT JOIN usuario u ON u.idusuario = c.usuario_idusuario
     LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
     WHERE s.idSolicitud = ?
-    GROUP BY s.idSolicitud
+    GROUP BY s.idSolicitud, u.nombre
   `;
 
   conexion.query(query, [id], (err, results) => {

@@ -19,6 +19,7 @@ import '../screens/panel_solicitudes_screen.dart';
 import '../screens/usuarios_screen.dart';
 import '../screens/productos_screen.dart';
 import '../screens/recuperar_password_screen.dart';
+import '../screens/restablecer_password_screen.dart';
 
 GoRouter appRouter(BuildContext context) {
   final auth = Provider.of<AuthService>(context, listen: false);
@@ -32,7 +33,8 @@ GoRouter appRouter(BuildContext context) {
         '/login',
         '/register',
         '/recuperar-password',
-      ].contains(state.matchedLocation);
+      ].contains(state.matchedLocation) ||
+          state.matchedLocation.startsWith('/restablecer-password/');
 
       if (!logueado && !enPublic) return '/';
       if (logueado && enLogin) return '/home';
@@ -57,6 +59,12 @@ GoRouter appRouter(BuildContext context) {
       GoRoute(
         path: '/recuperar-password',
         builder: (c, s) => const RecuperarPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/restablecer-password/:token',
+        builder: (c, s) => RestablecerPasswordScreen(
+          token: s.pathParameters['token']!,
+        ),
       ),
       GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
       GoRoute(path: '/catalogo', builder: (c, s) => const CatalogoScreen()),

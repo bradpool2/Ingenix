@@ -3,7 +3,7 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -12,6 +12,11 @@ import crypto from 'crypto';
 import conexion from './config/db.js';
 import { verificarToken, soloAdmin, soloTecnico } from './Middleware/Auth.js';
 import rutasSolicitudes from './Routes/solicitudes.js';
+
+// Las credenciales SMTP solo se cargan en el backend. Se prioriza .env.Front
+// cuando existe; ENV_FILE permite elegir explícitamente otro archivo.
+const envPath = process.env.ENV_FILE || (fs.existsSync('.env.Front') ? '.env.Front' : '.env');
+dotenv.config({ path: envPath });
 
 const app = express();
 const PUERTO = process.env.PORT || 3000;
@@ -194,20 +199,37 @@ app.put('/notificaciones/:id/accion', verificarToken, soloTecnico, async (req, r
 
 // ─── Recuperar contraseña ─────────────────────────────────────────────────────
 app.post('/recuperar-password', async (req, res) => {
-    const { correo } = req.body;
+    const correo = req.body.correo?.trim().toLowerCase();
+    const respuestaSegura = { message: 'Si existe una cuenta con ese correo, recibiras un enlace de recuperacion.' };
+    if (!correo) return res.status(400).json({ message: 'El correo es obligatorio.' });
     try {
-        const { rows } = await conexion.query('SELECT * FROM usuario WHERE correo = $1', [correo]);
-        if (rows.length === 0) return res.json({ message: 'No existe una cuenta con ese correo.' });
+        // Instala las columnas necesarias en bases ya creadas antes de esta función.
+        await conexion.query(`
+            ALTER TABLE usuario
+            ADD COLUMN IF NOT EXISTS token_recuperacion TEXT,
+            ADD COLUMN IF NOT EXISTS expiracion_token TIMESTAMPTZ
+        `);
+        const { rows } = await conexion.query(
+            'SELECT idusuario FROM usuario WHERE lower(correo) = $1', [correo]
+        );
+        if (rows.length === 0) return res.json(respuestaSegura);
 
         const token = crypto.randomBytes(32).toString('hex');
-        const expiracion = new Date(Date.now() + 15 * 60 * 1000);
-
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        // La expiración se calcula DENTRO de la base de datos (NOW() + 15 min), no en JavaScript.
+        // Así se guarda y se compara con el mismo reloj y la misma zona horaria.
         await conexion.query(
-            `UPDATE usuario SET token_recuperacion = $1, expiracion_token = $2 WHERE correo = $3`,
-            [token, expiracion, correo]
+            `UPDATE usuario
+             SET token_recuperacion = $1,
+                 expiracion_token = NOW() + INTERVAL '15 minutes'
+             WHERE idusuario = $2`,
+            [tokenHash, rows[0].idusuario]
         );
 
-        const enlace = `http://localhost:5173/restablecer-password/${token}`;
+        // El enlace abre una página que sirve este mismo backend (ver GET /restablecer-password/:token).
+        // Si pruebas desde el celular, pon en .env PUBLIC_URL=http://IP_DE_TU_PC:3000
+        const urlPublica = (process.env.PUBLIC_URL || `http://localhost:${PUERTO}`).replace(/\/$/, '');
+        const enlace = `${urlPublica}/restablecer-password/${token}`;
         await transporter.sendMail({
             from: process.env.EMAIL_USER,
             to: correo,
@@ -227,26 +249,124 @@ app.post('/recuperar-password', async (req, res) => {
 
         res.json({ message: 'Se envió un correo de recuperación.' });
     } catch (err) {
-        res.status(500).json({ message: 'Error del servidor' });
+        console.error('Error en /recuperar-password:', err.message);
+        res.status(500).json({
+            message: 'No fue posible enviar el correo de recuperación. Revisa la configuración SMTP del servidor.',
+        });
     }
+});
+
+// ─── Página web para restablecer contraseña (la abre el enlace del correo) ────
+app.get('/restablecer-password/:token', (req, res) => {
+    const { token } = req.params;
+    // El token real es hexadecimal de 64 caracteres; si no, no lo metemos en la página.
+    if (!/^[a-f0-9]{64}$/i.test(token)) {
+        return res.status(400).send('Enlace no válido.');
+    }
+    res.type('html').send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restablecer contraseña - Ingenix</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1f2326;font-family:Arial,sans-serif;color:#fff}
+  .tarjeta{width:100%;max-width:400px;margin:20px;padding:32px;background:#2a2f33;border-radius:12px}
+  h1{margin:0 0 4px;text-align:center;color:#99c1bb;letter-spacing:2px}
+  h2{margin:0 0 24px;text-align:center;font-weight:normal;font-size:18px}
+  label{display:block;margin:14px 0 6px;font-size:14px}
+  input{width:100%;padding:12px;border:1px solid #444;border-radius:8px;background:#1f2326;color:#fff;font-size:15px}
+  button{width:100%;margin-top:22px;padding:14px;border:0;border-radius:8px;background:#99c1bb;color:#1f2326;font-weight:bold;font-size:15px;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  #mensaje{margin-top:16px;text-align:center;font-size:14px;min-height:20px}
+  .ok{color:#7ddf9b}.error{color:#ff8a8a}
+</style>
+</head>
+<body>
+<div class="tarjeta">
+  <h1>INGENIX</h1>
+  <h2>Restablecer contraseña</h2>
+  <form id="formulario">
+    <label for="password">Nueva contraseña (mínimo 8 caracteres)</label>
+    <input type="password" id="password" autocomplete="new-password" required>
+    <label for="confirmar">Confirmar contraseña</label>
+    <input type="password" id="confirmar" autocomplete="new-password" required>
+    <button type="submit" id="boton">Guardar contraseña</button>
+  </form>
+  <p id="mensaje"></p>
+</div>
+<script>
+  const token = ${JSON.stringify(token)};
+  const formulario = document.getElementById('formulario');
+  const mensaje = document.getElementById('mensaje');
+  const boton = document.getElementById('boton');
+
+  function mostrar(texto, clase) {
+    mensaje.textContent = texto;
+    mensaje.className = clase;
+  }
+
+  formulario.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('password').value;
+    const confirmar = document.getElementById('confirmar').value;
+
+    if (password.length < 8) return mostrar('La contraseña debe tener al menos 8 caracteres.', 'error');
+    if (password !== confirmar) return mostrar('Las contraseñas no coinciden.', 'error');
+
+    boton.disabled = true;
+    try {
+      const res = await fetch('/restablecer-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        formulario.style.display = 'none';
+        mostrar('Contraseña actualizada. Ya puedes iniciar sesión en la app de Ingenix.', 'ok');
+      } else {
+        mostrar(data.message || 'No se pudo actualizar la contraseña.', 'error');
+        boton.disabled = false;
+      }
+    } catch {
+      mostrar('No se pudo conectar con el servidor.', 'error');
+      boton.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>`);
 });
 
 // ─── Restablecer contraseña ───────────────────────────────────────────────────
 app.post('/restablecer-password', async (req, res) => {
     const { token, password } = req.body;
     if (!token || !password) return res.status(400).json({ message: 'Datos incompletos.' });
+    if (password.length < 8) return res.status(400).json({ message: 'La contrasena debe tener al menos 8 caracteres.' });
 
     try {
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         const { rows } = await conexion.query(
-            `SELECT * FROM usuario WHERE token_recuperacion = $1 AND expiracion_token > NOW()`,
-            [token]
+            `SELECT idusuario, (expiracion_token > NOW()) AS vigente
+             FROM usuario
+             WHERE token_recuperacion = $1`,
+            [tokenHash]
         );
-        if (rows.length === 0) return res.status(400).json({ message: 'El enlace ya expiró o no es válido.' });
+        if (rows.length === 0) {
+            return res.status(400).json({
+                message: 'Este enlace no es válido o ya fue reemplazado. Usa el correo más reciente que te llegó, o pide uno nuevo.',
+            });
+        }
+        if (!rows[0].vigente) {
+            return res.status(400).json({ message: 'El enlace ya expiró. Pide uno nuevo.' });
+        }
 
         const nuevaPassword = await bcrypt.hash(password, 10);
         await conexion.query(
-            `UPDATE usuario SET pass = $1, token_recuperacion = NULL, expiracion_token = NULL WHERE "idUsuario" = $2`,
-            [nuevaPassword, rows[0].idUsuario]
+            `UPDATE usuario SET pass = $1, token_recuperacion = NULL, expiracion_token = NULL WHERE idusuario = $2`,
+            [nuevaPassword, rows[0].idusuario]
         );
 
         res.json({ message: 'Contraseña actualizada correctamente.' });
@@ -337,13 +457,40 @@ app.post('/usuarios', verificarToken, soloAdmin, async (req, res) => {
     }
 });
 
-app.put('/usuarios/:id', verificarToken, soloAdmin, async (req, res) => {
+app.put('/usuarios/:id', verificarToken, async (req, res) => {
     const { id } = req.params;
     const { nombre, correo, documento, direccion, telefono, rol_idRol } = req.body;
+    const esPropio = Number(req.usuario?.id) === Number(id);
+    if (!esPropio && req.usuario?.rol !== 'admin') {
+        return res.status(403).json({ message: 'Solo puedes editar tu propio perfil.' });
+    }
+
+    // Los datos pueden llegar como número (documento, teléfono) o como null.
+    // Los pasamos SIEMPRE a texto antes de usar .trim(); si no, un número hace reventar el servidor.
+    const aTexto = (valor) => (valor === null || valor === undefined ? '' : String(valor)).trim();
+    const nombreTxt = aTexto(nombre);
+    const correoTxt = aTexto(correo).toLowerCase();
+    const documentoTxt = aTexto(documento);
+    const direccionTxt = aTexto(direccion);
+    const telefonoTxt = aTexto(telefono);
+
+    if (!nombreTxt || !correoTxt || !documentoTxt) {
+        return res.status(400).json({ message: 'Nombre, correo y documento son obligatorios.' });
+    }
     try {
+        const rolActual = await conexion.query(
+            'SELECT rol_idrol FROM usuario WHERE idusuario = $1', [id]
+        );
+        if (rolActual.rows.length === 0) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+        // Solo un admin que edita a otra persona puede cambiar el rol.
+        const rolFinal = req.usuario?.rol === 'admin' && !esPropio && rol_idRol
+            ? rol_idRol
+            : rolActual.rows[0].rol_idrol;
         await conexion.query(
             'UPDATE usuario SET nombre=$1, correo=$2, documento=$3, direccion=$4, telefono=$5, rol_idrol=$6 WHERE idusuario=$7',
-            [nombre, correo, documento, direccion, telefono, rol_idRol, id]
+            [nombreTxt, correoTxt, documentoTxt, direccionTxt || null, telefonoTxt || null, rolFinal, id]
         );
         const { rows } = await conexion.query(
             `SELECT idusuario AS "idUsuario", nombre, correo, documento,
@@ -357,7 +504,13 @@ app.put('/usuarios/:id', verificarToken, soloAdmin, async (req, res) => {
             usuario: { ...rows[0], rol: req.usuario.rol },
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        // Así ves la causa real en la terminal del backend.
+        console.error('Error en PUT /usuarios/:id ->', err.message);
+        // 23505 = violación de restricción UNIQUE en PostgreSQL (correo o documento repetido)
+        if (err.code === '23505') {
+            return res.status(409).json({ message: 'Ese correo o documento ya está registrado por otro usuario.' });
+        }
+        res.status(500).json({ message: 'No se pudo actualizar el usuario.', error: err.message });
     }
 });
 
@@ -510,7 +663,11 @@ app.delete('/categorias/:id', verificarToken, soloAdmin, async (req, res) => {
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-app.get('/api/dashboard/estadisticas', async (req, res) => {
+app.get('/api/dashboard/estadisticas', verificarToken, soloTecnico, async (req, res) => {
+    const periodo = req.query.periodo === 'semana' ? 'semana' : 'hoy';
+    const filtroFecha = periodo === 'semana'
+        ? "fecha_registro >= CURRENT_DATE - INTERVAL '6 days'"
+        : 'CAST(fecha_registro AS DATE) = CURRENT_DATE';
     try {
         const { rows } = await conexion.query(
             `SELECT
@@ -518,10 +675,12 @@ app.get('/api/dashboard/estadisticas', async (req, res) => {
                     AND estado NOT IN ('Entregado', 'Cancelado')) AS mantenimientos,
                 COUNT(*) FILTER (WHERE estado = 'Pendiente') AS entregas_pendientes,
                 COALESCE(SUM(total_estimado), 0) AS suma_total
-             FROM solicitud`
+             FROM solicitud
+             WHERE ${filtroFecha}`
         );
         const datos = rows[0];
         res.json({
+            periodo,
             mantenimientos: `${datos.mantenimientos || 0} Activos`,
             entregas: `${datos.entregas_pendientes || 0} Pendientes`,
             totalEstimado: `$${Number(datos.suma_total).toLocaleString('es-CO')}`
@@ -789,7 +948,6 @@ app.get('/api/mis-solicitudes', verificarToken, async (req, res) => {
     }
 });
 
-// ─── Iniciar servidor ─────────────────────────────────────────────────────────
 app.listen(PUERTO, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
 });

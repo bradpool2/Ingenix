@@ -23,6 +23,7 @@ class _PanelSolicitudesScreenState extends State<PanelSolicitudesScreen> {
   String _entregas = 'Cargando...';
   String _totalEstimado = 'Cargando...';
   List<Map<String, dynamic>> _ultimas = [];
+  String _periodo = 'hoy';
 
   @override
   void initState() {
@@ -35,7 +36,9 @@ class _PanelSolicitudesScreenState extends State<PanelSolicitudesScreen> {
     try {
       final responses = await Future.wait([
         http.get(
-          Uri.parse('${AppConstants.baseUrl}/api/dashboard/estadisticas'),
+          Uri.parse(
+            '${AppConstants.baseUrl}/api/dashboard/estadisticas?periodo=$_periodo',
+          ),
           headers: auth.headers,
         ),
         http.get(
@@ -101,6 +104,28 @@ class _PanelSolicitudesScreenState extends State<PanelSolicitudesScreen> {
                     children: [
                       _DashboardHeader(userName: user?.nombre ?? 'Usuario'),
                       const SizedBox(height: 24),
+                      if (esAdmin)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(value: 'hoy', label: Text('Hoy')),
+                              ButtonSegment(
+                                value: 'semana',
+                                label: Text('Últimos 7 días'),
+                              ),
+                            ],
+                            selected: {_periodo},
+                            onSelectionChanged: (selection) {
+                              setState(() {
+                                _periodo = selection.first;
+                                _cargando = true;
+                              });
+                              _cargarDashboard();
+                            },
+                          ),
+                        ),
+                      if (esAdmin) const SizedBox(height: 18),
                       _MetricGrid(
                         mantenimientos: _mantenimientos,
                         entregas: _entregas,

@@ -48,7 +48,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   Future<void> _guardar() async {
     final telefono = _telefonoCtrl.text.replaceAll(RegExp(r'\D'), '');
-    if (!RegExp(r'^\d{10}$').hasMatch(telefono)) {
+    if (telefono.isNotEmpty && !RegExp(r'^\d{10}$').hasMatch(telefono)) {
       _mensaje(
         'El número de teléfono debe tener exactamente 10 dígitos',
         error: true,
@@ -102,7 +102,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
         setState(() => _editando = false);
         _mensaje('Datos actualizados correctamente');
       } else {
-        _mensaje('Error al actualizar los datos', error: true);
+        // Leemos el motivo real que manda el backend en vez de tirarlo.
+        var detalle = 'Error al actualizar los datos (${response.statusCode})';
+        try {
+          final data = jsonDecode(response.body);
+          if (data is Map) {
+            detalle = (data['message'] ?? data['error'] ?? detalle).toString();
+          }
+        } catch (_) {
+          // El cuerpo no era JSON: dejamos el mensaje con el código de estado.
+        }
+        _mensaje(detalle, error: true);
+
+        // 401/403 = token vencido (dura 2 horas): hay que volver a iniciar sesión.
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          await auth.cerrarSesion();
+          if (mounted) context.go('/login');
+        }
       }
     } catch (_) {
       if (mounted) _mensaje('No se pudo conectar con el servidor', error: true);
