@@ -740,8 +740,8 @@ router.get('/reportes/financiero', (req, res) => {
       END) AS total
     FROM solicitud s
     LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
-    WHERE s.estado = 'Entregado'
-    GROUP BY periodo, tipo
+    WHERE s.estado IN ('Terminado', 'Aprobado', 'Entregado', 'Almacenado')
+    GROUP BY TO_CHAR(s.fecha_registro, '${formatoFecha}'), s.TipoDeSolicitud_idDeSolicitud
     ORDER BY periodo ASC
   `;
 
@@ -774,8 +774,8 @@ router.get('/reportes/financiero/totales', (req, res) => {
       COUNT(*) AS cantidad
     FROM solicitud s
     LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
-    WHERE s.estado = 'Entregado'
-    GROUP BY tipo
+    WHERE s.estado IN ('Terminado', 'Aprobado', 'Entregado', 'Almacenado')
+    GROUP BY s.TipoDeSolicitud_idDeSolicitud
   `;
 
   conexion.query(query, (err, results) => {
@@ -784,8 +784,8 @@ router.get('/reportes/financiero/totales', (req, res) => {
     const resumen = { mantenimiento: { total: 0, cantidad: 0 }, venta: { total: 0, cantidad: 0 } };
 
     (Array.isArray(results) ? results : []).forEach(row => {
-      if (row.tipo === 1) resumen.mantenimiento = { total: Number(row.total) || 0, cantidad: row.cantidad };
-      if (row.tipo === 4) resumen.venta = { total: Number(row.total) || 0, cantidad: row.cantidad };
+      if (Number(row.tipo) === 1) resumen.mantenimiento = { total: Number(row.total) || 0, cantidad: Number(row.cantidad) || 0 };
+      if (Number(row.tipo) === 4) resumen.venta = { total: Number(row.total) || 0, cantidad: Number(row.cantidad) || 0 };
     });
 
     res.json(resumen);

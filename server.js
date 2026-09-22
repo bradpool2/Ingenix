@@ -41,7 +41,10 @@ const obtenerOcrearCliente = (usuario) => new Promise((resolve, reject) => {
     );
 });
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
@@ -170,11 +173,12 @@ app.post('/recuperar-password', (req, res) => {
             const enlace =
                 `http://localhost:5173/restablecer-password/${token}`;
 
-            await transporter.sendMail({
-                from: process.env.EMAIL_USER,
-                to: correo,
-                subject: 'Recuperación de contraseña - Ingenix',
-                html: `
+            try {
+                await transporter.sendMail({
+                    from: process.env.EMAIL_USER,
+                    to: correo,
+                    subject: 'Recuperación de contraseña - Ingenix',
+                    html: `
                 <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:30px;background:#f8fbfb;border-radius:12px;border:1px solid #ddd;">
                 
                     <h1 style="color:#99c1bb;text-align:center;">
@@ -228,8 +232,14 @@ app.post('/recuperar-password', (req, res) => {
                     </p>
                 
                 </div>
-                `
-            });
+                    `
+                });
+            } catch (errorCorreo) {
+                console.error('❌ No se pudo enviar el correo de recuperación:', errorCorreo.message);
+                return res.status(503).json({
+                    message: 'No se pudo enviar el correo de recuperación. Intenta nuevamente más tarde.'
+                });
+            }
 
             res.json({
                 message: 'Se envió un correo de recuperación.'
@@ -461,9 +471,28 @@ app.get('/usuarios/tecnicos', verificarToken, soloAdmin, (req, res) => {
 
 app.delete('/usuarios/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
-    conexion.query('DELETE FROM usuario WHERE idUsuario = ?', [id], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'Usuario eliminado con éxito' });
+    conexion.query('DELETE FROM notificacion_usuario WHERE id_usuario = ?', [id], (notificacionError) => {
+        if (notificacionError) return res.status(500).json({ error: notificacionError.message });
+        conexion.query('UPDATE contraoferta_solicitud SET usuario_id = NULL WHERE usuario_id = ?', [id], (contraofertaError) => {
+            if (contraofertaError) return res.status(500).json({ error: contraofertaError.message });
+            conexion.query('DELETE FROM pago WHERE Venta_idVenta IN (SELECT idVenta FROM Venta WHERE idUsuario = ?)', [id], (pagoError) => {
+                if (pagoError) return res.status(500).json({ error: pagoError.message });
+                conexion.query('DELETE FROM VentaDetalle WHERE Venta_idVenta IN (SELECT idVenta FROM Venta WHERE idUsuario = ?)', [id], (detalleError) => {
+                    if (detalleError) return res.status(500).json({ error: detalleError.message });
+                    conexion.query('DELETE FROM Venta WHERE idUsuario = ?', [id], (ventaError) => {
+                        if (ventaError) return res.status(500).json({ error: ventaError.message });
+                        conexion.query('UPDATE cliente SET usuario_idusuario = NULL WHERE usuario_idusuario = ?', [id], (clienteError) => {
+                            if (clienteError) return res.status(500).json({ error: clienteError.message });
+                            conexion.query('DELETE FROM usuario WHERE idUsuario = ?', [id], (err, resultado) => {
+                                if (err) return res.status(500).json({ error: err.message });
+                                if (resultado.affectedRows === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
+                                res.json({ message: 'Usuario eliminado con éxito' });
+                            });
+                        });
+                    });
+                });
+            });
+        });
     });
 });
 
@@ -519,11 +548,15 @@ app.put('/productos/:id', verificarToken, soloAdmin, (req, res) => {
 
 app.delete('/productos/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
-    conexion.query('DELETE FROM producto_y_solicitud WHERE producto_idProducto = ?', [id], (errRelacion) => {
-        if (errRelacion) return res.status(500).json({ error: errRelacion.message });
-        conexion.query('DELETE FROM producto WHERE idProducto = ?', [id], (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ message: 'Producto eliminado con éxito' });
+    conexion.query('DELETE FROM producto_y_solicitud WHERE producto_idProducto = ?', [id], (solicitudError) => {
+        if (solicitudError) return res.status(500).json({ error: solicitudError.message });
+        conexion.query('DELETE FROM producto_categoria WHERE producto_idProducto = ?', [id], (categoriaError) => {
+            if (categoriaError) return res.status(500).json({ error: categoriaError.message });
+            conexion.query('DELETE FROM producto WHERE idProducto = ?', [id], (err, resultado) => {
+                if (err) return res.status(500).json({ error: err.message });
+                if (resultado.affectedRows === 0) return res.status(404).json({ message: 'Producto no encontrado.' });
+                res.json({ message: 'Producto eliminado con éxito' });
+            });
         });
     });
 });
@@ -547,9 +580,13 @@ app.post('/categorias', verificarToken, soloAdmin, (req, res) => {
 
 app.delete('/categorias/:id', verificarToken, soloAdmin, (req, res) => {
     const { id } = req.params;
-    conexion.query('DELETE FROM categoria WHERE idCategoria = ?', [id], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'Categoría eliminada con éxito' });
+    conexion.query('DELETE FROM producto_categoria WHERE categoria_idCategoria = ?', [id], (relacionError) => {
+        if (relacionError) return res.status(500).json({ error: relacionError.message });
+        conexion.query('DELETE FROM categoria WHERE idCategoria = ?', [id], (err, resultado) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (resultado.affectedRows === 0) return res.status(404).json({ message: 'Categoría no encontrada.' });
+            res.json({ message: 'Categoría eliminada con éxito' });
+        });
     });
 });
 

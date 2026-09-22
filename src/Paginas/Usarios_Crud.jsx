@@ -133,11 +133,11 @@ export default function Usuarios_Crud() {
           >
             <option value="1">Administrador</option>
             <option value="2">Técnico</option>
-            <option value="3">Usuario</option>
-            <option value="4">Cliente</option>
+            <option value="3">Cliente</option>
+            <option value="4">Usuario</option>
           </select>
         </div>
-        <button type="submit" className="btn-crear">gar Usuario</button>
+        <button type="submit" className="btn-crear">Registrar Usuario</button>
       </form>
 
       <hr className="divisor" />
@@ -206,8 +206,8 @@ export default function Usuarios_Crud() {
                     >
                       <option value="1">Administrador</option>
                       <option value="2">Técnico</option>
-                      <option value="3">Usuario</option>
-                      <option value="4">Cliente</option>
+                      <option value="3">Cliente</option>
+                      <option value="4">Usuario</option>
                     </select>
                   </td>
                   <td>

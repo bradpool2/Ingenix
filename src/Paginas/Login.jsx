@@ -28,6 +28,7 @@ function Login() {
       if (res.ok) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.usuario));
+        sessionStorage.removeItem('sesion-expirada');
         navigate('/home');
       } else {
         setError(data.message || 'Credenciales inválidas');

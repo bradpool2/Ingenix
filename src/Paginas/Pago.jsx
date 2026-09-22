@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import { authFetch } from "../components/api.js";
@@ -68,15 +68,13 @@ function Pago() {
   const [paso, setPaso] = useState(1);
   const [referenciaPago, setReferenciaPago] = useState("");
 
-  if (!user) {
-    navigate("/login");
-    return null;
-  }
-
-  if (carrito.length === 0) {
-    navigate("/carrito");
-    return null;
-  }
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { replace: true });
+    } else if (carrito.length === 0 && paso !== 3) {
+      navigate("/Carrito_compra", { replace: true });
+    }
+  }, [carrito.length, navigate, paso, user]);
 
   const metodoInfo = METODOS.find((m) => m.id === metodoSeleccionado);
 

@@ -16,7 +16,10 @@ function Catalogo() {
       authFetch("http://localhost:3000/categorias").then((res) => res.json())
     ])
       .then(([dataProductos, dataCategorias]) => {
-        setProductos(dataProductos);
+        setProductos(Array.isArray(dataProductos) ? dataProductos.map((producto) => ({
+          ...producto,
+          idProducto: producto.idProducto ?? producto.idproducto,
+        })) : []);
         setCategorias(dataCategorias);
         setCargando(false);
       })

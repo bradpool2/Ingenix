@@ -381,6 +381,18 @@
   margin-bottom: 12px;
 }
 
+.categoria-admin-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid rgba(153,193,187,.4);
+  border-radius: 20px;
+  background: rgba(153,193,187,.18);
+  color: var(--color-texto);
+  font-size: 13px;
+}
+
 .chip-categoria {
   display: inline-flex;
   align-items: center;
@@ -397,6 +409,7 @@
   cursor: pointer;
   background: white;
   transition: .25s;
+  font: inherit;
 }
 
 .chip-categoria.seleccionable:hover {
@@ -410,10 +423,16 @@
 }
 
 .chip-eliminar {
-  background: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
   border: none;
-  color: var(--color-texto-secundario);
-  font-size: 14px;
+  border-radius: 0;
+  color: #C62828;
+  font-size: 18px;
+  font-weight: 700;
   cursor: pointer;
   padding: 0;
   line-height: 1;

@@ -1,4 +1,4 @@
-export const authFetch = (url, opciones = {}) => {
+export const authFetch = async (url, opciones = {}) => {
     const token = localStorage.getItem('token');
     const headers = new Headers(opciones.headers || {});
 
@@ -9,8 +9,10 @@ export const authFetch = (url, opciones = {}) => {
         headers.set('Authorization', `Bearer ${token}`);
     }
 
-    return fetch(url, {
+    const response = await fetch(url, {
         ...opciones,
         headers,
     });
+
+    return response;
 };

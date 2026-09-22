@@ -13,7 +13,7 @@ export default function Productos_Crud() {
     categoriasSeleccionadas: []
   });
   const [nuevaCategoria, setNuevaCategoria] = useState('');
-  const [mostrarCategorias, setMostrarCategorias] = useState(false);
+  const [mostrarCategorias, setMostrarCategorias] = useState(true);
 
   const obtenerProductos = async () => {
     try {
@@ -32,7 +32,10 @@ export default function Productos_Crud() {
     try {
       const res = await authFetch('http://localhost:3000/categorias');
       const data = await res.json();
-      setCategorias(Array.isArray(data) ? data : []);
+      setCategorias(Array.isArray(data) ? data.map((categoria) => ({
+        ...categoria,
+        idCategoria: categoria.idCategoria ?? categoria.idcategoria,
+      })) : []);
     } catch (err) {
       console.error(err);
     }
@@ -63,13 +66,16 @@ export default function Productos_Crud() {
     }
   };
 
-  const handleEliminarCategoria = async (id) => {
-    if (!window.confirm('¿Eliminar esta categoría? Se quitará de todos los productos que la tengan.')) return;
+  const handleEliminarCategoria = async (id, nombre) => {
+    if (!window.confirm(`¿Eliminar la categoría "${nombre}"? Se quitará de todos los productos que la tengan.`)) return;
     try {
       const res = await authFetch(`http://localhost:3000/categorias/${id}`, { method: 'DELETE' });
       if (res.ok) {
         obtenerCategorias();
         obtenerProductos();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || data.message || 'No se pudo eliminar la categoría.');
       }
     } catch (err) {
       console.error(err);
@@ -79,13 +85,14 @@ export default function Productos_Crud() {
   // ---------------- PRODUCTOS ----------------
 
   const toggleCategoriaNuevoProducto = (idCategoria) => {
+    const categoriaId = String(idCategoria);
     setNuevoProducto(prev => {
-      const yaEsta = prev.categoriasSeleccionadas.includes(idCategoria);
+      const yaEsta = prev.categoriasSeleccionadas.includes(categoriaId);
       return {
         ...prev,
         categoriasSeleccionadas: yaEsta
-          ? prev.categoriasSeleccionadas.filter(c => c !== idCategoria)
-          : [...prev.categoriasSeleccionadas, idCategoria]
+          ? prev.categoriasSeleccionadas.filter(c => c !== categoriaId)
+          : [...prev.categoriasSeleccionadas, categoriaId]
       };
     });
   };
@@ -183,10 +190,17 @@ export default function Productos_Crud() {
               {categorias.length === 0
                 ? <p className="empty-msg">No hay categorías creadas aún.</p>
                 : categorias.map(c => (
-                    <span key={c.idCategoria} className="chip-categoria">
-                      {c.nombre}
-                      <button className="chip-eliminar" onClick={() => handleEliminarCategoria(c.idCategoria)}>×</button>
-                    </span>
+                    <div key={c.idCategoria} className="categoria-admin-item">
+                      <span>{c.nombre}</span>
+                      <button
+                        type="button"
+                        className="chip-eliminar"
+                        aria-label={`Eliminar categoría ${c.nombre}`}
+                        onClick={() => handleEliminarCategoria(c.idCategoria, c.nombre)}
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))
               }
             </div>
@@ -232,13 +246,14 @@ export default function Productos_Crud() {
           {categorias.length === 0
             ? <p className="empty-msg">Crea categorías arriba para poder asignarlas.</p>
             : categorias.map(c => (
-                <span
+                <button
+                  type="button"
                   key={c.idCategoria}
-                  className={`chip-categoria seleccionable ${nuevoProducto.categoriasSeleccionadas.includes(c.idCategoria) ? 'activa' : ''}`}
+                  className={`chip-categoria seleccionable ${nuevoProducto.categoriasSeleccionadas.includes(String(c.idCategoria)) ? 'activa' : ''}`}
                   onClick={() => toggleCategoriaNuevoProducto(c.idCategoria)}
                 >
                   {c.nombre}
-                </span>
+                </button>
               ))
           }
         </div>
