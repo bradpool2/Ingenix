@@ -109,3 +109,5 @@ pool.query('SELECT 1')
     .catch((error) => console.error('❌ Error de conexión a Supabase:', error.message));
 
 export default conexion;
+
+export { pool };

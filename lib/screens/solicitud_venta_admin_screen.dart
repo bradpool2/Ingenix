@@ -443,6 +443,41 @@ class _VentaDetalleDialogState extends State<_VentaDetalleDialog> {
               widget.detalle['descripcion'] ?? widget.detalle['servicios'],
             ),
             _dato('Estado del artículo', widget.detalle['estadoArticulo']),
+            if (_imagenes().isNotEmpty) ...[
+              const Divider(height: 24),
+              const Text(
+                'Imágenes del cliente',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: IngenixTheme.texto,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _imagenes()
+                    .map(
+                      (url) => ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          _urlImagen(url),
+                          width: 150,
+                          height: 110,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 150,
+                            height: 110,
+                            color: Colors.black12,
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
             _dato(
               'Precio ofrecido por el cliente',
               _moneda(
@@ -518,6 +553,19 @@ class _VentaDetalleDialogState extends State<_VentaDetalleDialog> {
     padding: const EdgeInsets.only(bottom: 8),
     child: Text('$etiqueta: ${valor ?? '—'}'),
   );
+
+  List<String> _imagenes() {
+    final value = widget.detalle['imagenes'];
+    if (value is List) {
+      return value.map((url) => url.toString()).where((url) => url.isNotEmpty).toList();
+    }
+    final imagen = widget.detalle['imagen']?.toString() ?? '';
+    return imagen.isEmpty ? [] : imagen.split(',').map((url) => url.trim()).toList();
+  }
+
+  String _urlImagen(String url) =>
+      url.startsWith('http') ? url : '${AppConstants.baseUrl}$url';
+
   String _moneda(dynamic valor) {
     final numero = num.tryParse(valor?.toString() ?? '');
     return numero == null

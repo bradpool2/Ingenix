@@ -137,47 +137,95 @@ class _SolicitudEntregaScreenState extends State<SolicitudEntregaScreen> {
 
   Future<void> _assign(Map<String, dynamic> item) async {
     String? selectedTechnician = item['tecnicoAsignado']?.toString();
-    final technician = await showDialog<String>(
+    var selectedUrgency = item['urgencia']?.toString() ?? 'Media';
+    final assignment = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Asignar técnico'),
-        content: DropdownButtonFormField<String>(
-          initialValue:
-              _technicians.any(
-                (technician) => technician['nombre'] == selectedTechnician,
-              )
-              ? selectedTechnician
-              : null,
-          decoration: const InputDecoration(labelText: 'Técnico'),
-          items: _technicians
-              .map(
-                (technician) => DropdownMenuItem<String>(
-                  value: technician['nombre']?.toString(),
-                  child: Text(technician['nombre']?.toString() ?? 'Sin nombre'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Asignar orden #${item['numeroOrden'] ?? item['idSolicitud'] ?? '—'}',
                 ),
-              )
-              .toList(),
-          onChanged: (value) => selectedTechnician = value,
+              ),
+              IconButton(
+                tooltip: 'Cerrar',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue:
+                    _technicians.any(
+                      (technician) =>
+                          technician['nombre']?.toString() ==
+                          selectedTechnician,
+                    )
+                    ? selectedTechnician
+                    : null,
+                decoration: const InputDecoration(labelText: 'Técnico'),
+                items: _technicians
+                    .map(
+                      (technician) => DropdownMenuItem<String>(
+                        value: technician['nombre']?.toString(),
+                        child: Text(
+                          technician['nombre']?.toString() ?? 'Sin nombre',
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setDialogState(() => selectedTechnician = value),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: selectedUrgency,
+                decoration: const InputDecoration(labelText: 'Urgencia'),
+                items: const ['Baja', 'Media', 'Alta']
+                    .map(
+                      (urgency) => DropdownMenuItem(
+                        value: urgency,
+                        child: Text(urgency),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => selectedUrgency = value);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: selectedTechnician == null
+                  ? null
+                  : () => Navigator.pop(context, {
+                      'tecnico': selectedTechnician!,
+                      'urgencia': selectedUrgency,
+                    }),
+              child: const Text('Asignar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, selectedTechnician),
-            child: const Text('Asignar'),
-          ),
-        ],
       ),
     );
-    if (technician == null || technician.isEmpty || !mounted) return;
+    if (assignment == null || !mounted) return;
     final auth = context.read<AuthService>();
     final id = item['idSolicitud'];
     final response = await http.put(
       Uri.parse('${AppConstants.baseUrl}/solicitudes/$id/asignar'),
       headers: {...auth.headers, 'Content-Type': 'application/json'},
-      body: jsonEncode({'tecnico_asignado': technician}),
+      body: jsonEncode({
+        'tecnico_asignado': assignment['tecnico'],
+        'urgencia': assignment['urgencia'],
+      }),
     );
     if (!mounted) return;
     if (response.statusCode >= 200 && response.statusCode < 300) {

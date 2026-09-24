@@ -237,12 +237,12 @@ router.post('/solicitudes/cliente', upload.single('imagen'), (req, res) => {
       const idSolicitud = resultSolicitud.insertId;
  
       const queryInsertarDetalle = `
-        INSERT INTO detalleSolicitud (
-          solicitud_idSolicitud,
-          nombreArticulo,
+        INSERT INTO detalle_solicitud (
+          solicitud_idsolicitud,
+          nombrearticulo,
           descripcion,
-          estadoArticulo,
-          precioEstimado,
+          estadoarticulo,
+          precioestimado,
           imagen
         )
         VALUES (?, ?, ?, ?, ?, ?)
@@ -317,37 +317,111 @@ router.get('/solicitudes/almacenado', verificarToken, soloAdmin, async (req, res
   }
 });
 
-// Buscar solicitud por id
-router.get('/solicitudes/:id', (req, res) => {
-  const { id } = req.params;
-  const query = `
-    SELECT
-      s.idSolicitud AS "idSolicitud",
-      s.numeroOrden AS "numeroOrden",
-      s.fecha_registro,
-      s.total_estimado,
-      s.estado,
-      s.urgencia,
-      s.nombreTecnico,
-      s.tecnico_asignado,
-      s.observacion_admin AS "observacionAdmin",
-      s.cliente_idCliente,
-      COALESCE(u.nombre, 'Sin cliente asociado') AS "clienteNombre",
-      s.TipoDeSolicitud_idDeSolicitud AS "tipo",
-      GROUP_CONCAT(ps.detalle_servicio SEPARATOR ', ') AS servicios
-    FROM solicitud s
-    LEFT JOIN cliente c ON c.idcliente = s.cliente_idCliente
-    LEFT JOIN usuario u ON u.idusuario = c.usuario_idusuario
-    LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
-    WHERE s.idSolicitud = ?
-    GROUP BY s.idSolicitud, u.nombre
-  `;
+// Buscar solicitud por id. Incluye el detalle estructurado y las imágenes
+// guardadas en la solicitud nueva o dentro del texto legado de servicios.
+router.get('/solicitudes/:id', async (req, res) => {
+  try {
+    const { rows } = await conexion.query(`
+      SELECT
+        s.idSolicitud AS "idSolicitud",
+        s.numeroOrden AS "numeroOrden",
+        s.fecha_registro AS "fechaRegistro",
+        s.total_estimado AS "totalEstimado",
+        s.estado,
+        s.urgencia,
+        s.nombreTecnico,
+        s.tecnico_asignado,
+        s.observacion_admin AS "observacionAdmin",
+        s.cliente_idCliente AS "clienteId",
+        COALESCE(u.nombre, 'Sin cliente asociado') AS "clienteNombre",
+        s.TipoDeSolicitud_idDeSolicitud AS "tipo",
+        co.monto AS contraoferta,
+        co.comentario AS "comentarioContraoferta",
+        ds.precio_final AS "precioFinal",
+        ds.nombrearticulo AS "nombreArticulo",
+        ds.descripcion,
+        ds.estadoarticulo AS "estadoArticulo",
+        ds.precioestimado AS "precioEstimado",
+        ds.imagen,
+        COALESCE(STRING_AGG(DISTINCT si.ruta, ','), '') AS "imagenesGuardadas",
+        COALESCE(STRING_AGG(DISTINCT COALESCE(ps.detalle_servicio, ''), ', '), '') AS servicios
+      FROM solicitud s
+      LEFT JOIN cliente c ON c.idcliente = s.cliente_idCliente
+      LEFT JOIN usuario u ON u.idusuario = c.usuario_idusuario
+      LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idSolicitud
+      LEFT JOIN solicitud_imagen si ON si.solicitud_id = s.idSolicitud
+      LEFT JOIN producto_y_solicitud ps ON ps.solicitud_idSolicitud = s.idSolicitud
+      LEFT JOIN LATERAL (
+        SELECT monto, comentario
+        FROM contraoferta_solicitud
+        WHERE solicitud_id = s.idSolicitud
+        ORDER BY creado_en DESC
+        LIMIT 1
+      ) co ON true
+      WHERE s.idSolicitud = $1
+      GROUP BY s.idSolicitud, u.nombre, ds.nombrearticulo, ds.descripcion,
+        ds.estadoarticulo, ds.precioestimado, ds.imagen, ds.precio_final,
+        co.monto, co.comentario
+    `, [req.params.id]);
 
-  conexion.query(query, [id], (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (results.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
-    res.json(results[0]);
-  });
+    if (rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    const detalle = rows[0];
+    const imagenes = [
+      ...(detalle.imagen ? String(detalle.imagen).split(',').map((url) => url.trim()) : []),
+      ...(detalle.imagenesGuardadas ? String(detalle.imagenesGuardadas).split(',') : []),
+      ...(String(detalle.servicios || '').match(/\/uploads\/solicitudes\/[^\s,|]+/g) || []),
+    ].filter((url, index, lista) => url && lista.indexOf(url) === index);
+    detalle.imagenes = imagenes;
+    res.json(detalle);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/solicitudes/:id/contraoferta', verificarToken, soloAdmin, async (req, res) => {
+  const monto = Number(req.body.monto);
+  const comentario = req.body.comentario?.toString().trim() || null;
+  if (!Number.isFinite(monto) || monto < 0) {
+    return res.status(400).json({ error: 'El monto de la contraoferta no es válido.' });
+  }
+  try {
+    const result = await conexion.query(`
+      INSERT INTO contraoferta_solicitud (solicitud_id, monto, comentario, usuario_id)
+      SELECT idSolicitud, $1, $2, $3
+      FROM solicitud
+      WHERE idSolicitud = $4 AND TipoDeSolicitud_idDeSolicitud = 4
+      RETURNING id
+    `, [monto, comentario, req.usuario.id, req.params.id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Solicitud de venta no encontrada.' });
+    }
+    res.json({ message: 'Contraoferta guardada.', monto, comentario });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/solicitudes/:id/venta', verificarToken, soloAdmin, async (req, res) => {
+  const precio = req.body.precioFinal === null || req.body.precioFinal === ''
+    ? null
+    : Number(req.body.precioFinal);
+  if (precio !== null && (!Number.isFinite(precio) || precio < 0)) {
+    return res.status(400).json({ error: 'El precio final no es válido.' });
+  }
+  try {
+    const result = await conexion.query(`
+      UPDATE detalle_solicitud ds
+      SET precio_final = $1
+      FROM solicitud s
+      WHERE ds.solicitud_idsolicitud = s.idSolicitud
+        AND s.idSolicitud = $2
+        AND s.TipoDeSolicitud_idDeSolicitud = 4
+    `, [precio, req.params.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Solicitud de venta no encontrada.' });
+    res.json({ message: 'Precio final guardado.', precioFinal: precio });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, async (req, res) => {
@@ -394,15 +468,26 @@ router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) =>
     return res.status(400).json({ error: 'Estado no válido' });
   }
 
-  conexion.query('SELECT estado FROM solicitud WHERE idSolicitud = ?', [id], (errConsulta, resultados) => {
+  conexion.query(
+    'SELECT estado, TipoDeSolicitud_idDeSolicitud AS tipo FROM solicitud WHERE idSolicitud = ?',
+    [id],
+    (errConsulta, resultados) => {
     if (errConsulta) return res.status(500).json({ error: errConsulta.message });
     if (resultados.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
     const estadoActual = resultados[0].estado;
+    const esVenta = Number(resultados[0].tipo) === TIPO_SOLICITUD.VENTA;
+    const transicionesVentaAdmin = {
+      Pendiente: ['En revision', 'Aprobado', 'Cancelado'],
+      'En revision': ['Aprobado', 'Cancelado', 'En proceso'],
+      Aprobado: ['Entregado', 'Cancelado'],
+    };
     const permitidos = req.usuario?.rol === 'admin'
-      ? estadosAdmin[estadoActual] || []
+      ? (esVenta ? transicionesVentaAdmin[estadoActual] || [] : estadosAdmin[estadoActual] || [])
       : ({ Pendiente: ['En proceso'], 'En proceso': ['Terminado'], Terminado: ['En revision'] }[estadoActual] || []);
     if (!permitidos.includes(estado)) {
-      return res.status(403).json({ error: `No se permite pasar de ${estadoActual} a ${estado}.` });
+      return res.status(403).json({
+        error: `La solicitud de ${esVenta ? 'venta' : 'entrega'} no puede pasar de ${estadoActual} a ${estado}.`,
+      });
     }
     if (req.usuario?.rol === 'admin' && estadoActual === 'En revision' && estado === 'En proceso' && !observacion_admin?.trim()) {
       return res.status(400).json({ error: 'Debes indicar el motivo de la devolución al técnico.' });
@@ -428,7 +513,7 @@ router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) =>
       if (err) return res.status(500).json({ error: err.message });
       if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
       res.json({ message: 'Estado actualizado correctamente' });
-    });
+      });
   });
 });
 // Reporte financiero — semana / mes / año
@@ -504,6 +589,9 @@ router.put('/solicitudes/:id/asignar', verificarToken, soloAdmin, (req, res) => 
 
   if (!tecnico_asignado && !urgencia) {
     return res.status(400).json({ message: 'Debes enviar al menos tecnico_asignado o urgencia' });
+  }
+  if (urgencia && !['Baja', 'Media', 'Alta'].includes(urgencia)) {
+    return res.status(400).json({ message: 'La urgencia debe ser Baja, Media o Alta.' });
   }
 
   // Primero consultamos el estado actual

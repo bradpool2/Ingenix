@@ -9,9 +9,11 @@ import path from 'path';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-import conexion from './config/db.js';
+import conexion, { pool } from './config/db.js';
 import { verificarToken, soloAdmin, soloTecnico } from './Middleware/Auth.js';
 import rutasSolicitudes from './Routes/solicitudes.js';
+import openapi from './docs/openapi.js';
+import swaggerUi from 'swagger-ui-express';
 
 // Las credenciales SMTP solo se cargan en el backend. Se prioriza .env.Front
 // cuando existe; ENV_FILE permite elegir explícitamente otro archivo.
@@ -28,6 +30,66 @@ const transporter = nodemailer.createTransport({
         pass: process.env.EMAIL_PASS
     }
 });
+
+// ─── Chequeo de arranque ────────────────────────────────────────────────────
+// Se revisa UNA vez al iniciar el servidor, para que en un PC nuevo el error
+// salga aquí (en la terminal) y no solo cuando alguien le da a "Olvidé mi
+// contraseña". Si falta un archivo .env (normal: no debe subirse a git),
+// las rutas de correo van a fallar aunque el resto del backend funcione bien.
+const variablesFaltantes = ['DATABASE_URL', 'EMAIL_USER', 'EMAIL_PASS', 'JWT_SECRET']
+    .filter((nombre) => !process.env[nombre] && !(nombre === 'DATABASE_URL' && process.env.SUPABASE_DB_URL));
+if (variablesFaltantes.length) {
+    console.warn(
+        `⚠️  Faltan variables de entorno en "${envPath}": ${variablesFaltantes.join(', ')}.
+` +
+        `   Copia .env.example como "${envPath}" y complétalo en este PC.`
+    );
+}
+// Formatea números como pesos colombianos: 150000 -> "$150.000"
+const formatoPesos = (valor) => `$${Number(valor).toLocaleString('es-CO')}`;
+
+// Correo de pago confirmado. Reutiliza el mismo estilo visual del correo
+// de "Recuperación de contraseña" (mismo encabezado, mismos colores) para
+// que se vea como parte de la misma app.
+const enviarCorreoPagoConfirmado = ({ correo, nombre, total, referencia, idVenta }) => (
+    transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: correo,
+        subject: 'Pago confirmado - Ingenix',
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:30px;">
+            <h1 style="color:#99c1bb;text-align:center;">INGENIX</h1>
+            <h2 style="text-align:center;">¡Tu pago fue confirmado!</h2>
+            <p>Hola ${nombre || ''}, te confirmamos que tu pago se procesó correctamente.</p>
+            <table style="width:100%;border-collapse:collapse;margin:25px 0;">
+                <tr>
+                    <td style="padding:10px;border-bottom:1px solid #eee;color:#777;">Número de venta</td>
+                    <td style="padding:10px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;">#${idVenta}</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px;border-bottom:1px solid #eee;color:#777;">Referencia de pago</td>
+                    <td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${referencia}</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px;color:#777;">Total pagado</td>
+                    <td style="padding:10px;text-align:right;font-weight:bold;color:#2a2f33;">${formatoPesos(total)}</td>
+                </tr>
+            </table>
+            <p style="font-size:13px;color:#777;">Si no reconoces esta compra, contáctanos respondiendo este correo.</p>
+        </div>`,
+    })
+);
+
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    transporter.verify((error) => {
+        if (error) {
+            console.error(`❌ No se pudo autenticar con Gmail (recuperar contraseña NO va a funcionar): ${error.message}
+   Causas típicas: EMAIL_PASS debe ser una "contraseña de aplicación" de Gmail (no la clave normal),
+   o Google bloqueó el inicio de sesión por venir de un PC/red nuevo (revisa https://myaccount.google.com/security).`);
+        } else {
+            console.log('✅ Envío de correo (Gmail) verificado correctamente');
+        }
+    });
+}
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -74,6 +136,8 @@ const cargarImagenesSolicitud = (req, res, next) => {
 };
 
 app.use('/uploads', express.static('uploads'));
+app.get('/docs/openapi.json', (req, res) => res.json(openapi));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
 
 // ─── Test ─────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -377,19 +441,47 @@ app.post('/restablecer-password', async (req, res) => {
 
 // ─── Registro público ─────────────────────────────────────────────────────────
 app.post('/usuarios/registro', async (req, res) => {
-    const { nombre, correo, documento, direccion, pass, rol_idRol } = req.body;
+    const { nombre, correo, documento, direccion, telefono, pass, rol_idRol } = req.body;
     if (!nombre || !correo || !documento || !pass)
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
 
+    const rolFinal = rol_idRol || 3; // 3 = cliente, el rol por defecto de "Registrarse"
+    const esCliente = Number(rolFinal) === 3;
+
+    // Transacción: usuario + (si es cliente) su fila en "cliente" se guardan juntos.
+    // Si algo falla a mitad de camino, se deshace todo (ROLLBACK) y no queda
+    // un usuario "a medias" sin perfil de cliente, que es justo el bug que tenías.
+    let cliente;
     try {
+        cliente = await pool.connect();
+        await cliente.query('BEGIN');
+
         const passEncriptada = await bcrypt.hash(pass, 10);
-        const { rows } = await conexion.query(
-            'INSERT INTO usuario (nombre, correo, documento, direccion, pass, "rol_idRol") VALUES ($1, $2, $3, $4, $5, $6) RETURNING "idUsuario"',
-            [nombre, correo, documento, direccion, passEncriptada, rol_idRol || 3]
+        const { rows } = await cliente.query(
+            'INSERT INTO usuario (nombre, correo, documento, direccion, telefono, pass, "rol_idRol") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING "idUsuario"',
+            [nombre, correo, documento, direccion || null, telefono || null, passEncriptada, rolFinal]
         );
-        res.status(201).json({ message: 'Usuario registrado con éxito', idUsuario: rows[0].idUsuario });
+        const idUsuario = rows[0].idUsuario;
+
+        if (esCliente) {
+            await cliente.query(
+                'INSERT INTO cliente (documento, direccion, telefono, usuario_idusuario) VALUES ($1, $2, $3, $4)',
+                [documento, direccion || null, telefono || null, idUsuario]
+            );
+        }
+
+        await cliente.query('COMMIT');
+        res.status(201).json({ message: 'Usuario registrado con éxito', idUsuario });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        if (cliente) await cliente.query('ROLLBACK').catch(() => {});
+        // 23505 = correo o documento ya existen (restricción UNIQUE)
+        if (err.code === '23505') {
+            return res.status(409).json({ message: 'Ese correo o documento ya está registrado.' });
+        }
+        console.error('Error en /usuarios/registro ->', err.message);
+        res.status(500).json({ error: 'No se pudo completar el registro.' });
+    } finally {
+        if (cliente) cliente.release();
     }
 });
 
@@ -783,15 +875,27 @@ app.post('/api/venta', verificarToken, cargarImagenesSolicitud, async (req, res)
     }
 
     try {
-        const clienteResult = await conexion.query(
+        let clienteResult = await conexion.query(
             'SELECT idcliente FROM cliente WHERE usuario_idusuario = $1',
             [req.usuario.id]
         );
 
         if (clienteResult.rows.length === 0) {
-            return res.status(400).json({
-                error: 'El usuario autenticado no tiene un perfil de cliente.',
-            });
+            // Cuenta creada ANTES de este arreglo: le creamos su fila en "cliente"
+            // ahora mismo, tomando los datos que ya tiene guardados en "usuario",
+            // en vez de dejarla bloqueada para siempre.
+            const { rows: datosUsuario } = await conexion.query(
+                'SELECT documento, direccion, telefono FROM usuario WHERE idusuario = $1',
+                [req.usuario.id]
+            );
+            if (datosUsuario.length === 0) {
+                return res.status(404).json({ error: 'Usuario no encontrado.' });
+            }
+            clienteResult = await conexion.query(
+                `INSERT INTO cliente (documento, direccion, telefono, usuario_idusuario)
+                 VALUES ($1, $2, $3, $4) RETURNING idcliente`,
+                [datosUsuario[0].documento, datosUsuario[0].direccion, datosUsuario[0].telefono, req.usuario.id]
+            );
         }
 
         const idCliente = clienteResult.rows[0].idcliente;
@@ -824,6 +928,28 @@ app.post('/api/venta', verificarToken, cargarImagenesSolicitud, async (req, res)
             [2, ordenGenerada, detalle]
         );
 
+        await conexion.query(
+            `INSERT INTO detalle_solicitud
+                (solicitud_idsolicitud, nombrearticulo, descripcion, estadoarticulo, precioestimado, imagen)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+                ordenGenerada,
+                nombreArticulo.trim(),
+                descripcion.trim(),
+                tipo === 'venta' ? estadoArticulo || null : null,
+                tipo === 'venta' && precioEstimado ? Number(precioEstimado) : null,
+                imagenUrls.length ? imagenUrls.join(',') : null,
+            ]
+        );
+
+        for (const imagenUrl of imagenUrls) {
+            await conexion.query(
+                `INSERT INTO solicitud_imagen (solicitud_id, tipo, ruta)
+                 VALUES ($1, $2, $3)`,
+                [ordenGenerada, tipo, imagenUrl]
+            );
+        }
+
         res.status(201).json({ message: 'Solicitud enviada correctamente', numeroOrden: ordenGenerada, tipo, imagenUrl, imagenUrls });
     } catch (err) {
         eliminarImagenes();
@@ -843,7 +969,9 @@ app.post('/venta', async (req, res) => {
             `INSERT INTO venta (fecha, estado, total, idusuario) VALUES (CURRENT_DATE, 'pagado', $1, $2) RETURNING idventa`,
             [total, idUsuario]
         );
-        const idVenta = ventaRows[0].idVenta;
+        // OJO: RETURNING idventa (minúscula) devuelve la clave "idventa", no "idVenta".
+        // Con el nombre mal escrito esto quedaba en `undefined` y rompía los inserts de abajo.
+        const idVenta = ventaRows[0].idventa;
 
         for (const p of productos) {
             await conexion.query(
@@ -859,8 +987,29 @@ app.post('/venta', async (req, res) => {
         );
 
         res.status(201).json({ message: 'Venta y pago registrados correctamente', idVenta, referencia });
+
+        // El correo se manda DESPUÉS de responder: si Gmail falla o tarda, el cliente
+        // ya recibió su confirmación de compra y no se queda esperando por el correo.
+        try {
+            const { rows: datosUsuario } = await conexion.query(
+                'SELECT nombre, correo FROM usuario WHERE idusuario = $1', [idUsuario]
+            );
+            if (datosUsuario[0]?.correo) {
+                await enviarCorreoPagoConfirmado({
+                    correo: datosUsuario[0].correo,
+                    nombre: datosUsuario[0].nombre,
+                    total,
+                    referencia,
+                    idVenta,
+                });
+            }
+        } catch (errCorreo) {
+            // Que falle el correo nunca debe verse como que falló la venta.
+            console.error('No se pudo enviar el correo de pago confirmado:', errCorreo.message);
+        }
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('Error en /venta ->', err.message);
+        res.status(500).json({ error: 'No se pudo registrar la venta.' });
     }
 });
 
