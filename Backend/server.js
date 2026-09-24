@@ -797,6 +797,32 @@ app.get('/api/dashboard/ultimas-solicitudes', async (req, res) => {
     }
 });
 
+app.get('/api/reportes/dashboard', verificarToken, soloAdmin, async (req, res) => {
+    const periodo = ['semanal', 'mensual', 'anual'].includes(req.query.periodo)
+        ? req.query.periodo
+        : 'mensual';
+    const intervalos = {
+        semanal: "CURRENT_DATE - INTERVAL '6 days'",
+        mensual: "CURRENT_DATE - INTERVAL '1 month'",
+        anual: "CURRENT_DATE - INTERVAL '1 year'",
+    };
+    try {
+        const { rows } = await conexion.query(
+            `SELECT
+                COUNT(*)::integer AS total_solicitudes,
+                COUNT(*) FILTER (WHERE TipoDeSolicitud_idDeSolicitud = 1)::integer AS mantenimientos,
+                COUNT(*) FILTER (WHERE TipoDeSolicitud_idDeSolicitud = 4)::integer AS ventas,
+                COUNT(*) FILTER (WHERE estado = 'Entregado')::integer AS entregadas,
+                COALESCE(SUM(total_estimado), 0)::numeric AS total_estimado
+             FROM solicitud
+             WHERE fecha_registro >= ${intervalos[periodo]}`
+        );
+        res.json({ periodo, generadoEn: new Date().toISOString(), ...rows[0] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/dashboard/comparativo', verificarToken, soloTecnico, async (req, res) => {
     try {
         const { rows } = await conexion.query(

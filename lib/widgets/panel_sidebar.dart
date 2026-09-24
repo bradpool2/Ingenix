@@ -70,6 +70,13 @@ class PanelSidebar extends StatelessWidget {
               route: '/solicitudes-almacenadas',
               active: activeRoute == '/solicitudes-almacenadas',
             ),
+          if (esAdmin)
+            _PanelLink(
+              icon: Icons.settings_outlined,
+              label: 'Gestión',
+              route: '/gestion',
+              active: activeRoute == '/gestion',
+            ),
         ],
       ),
     );

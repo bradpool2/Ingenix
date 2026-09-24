@@ -306,6 +306,11 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                   label: 'Productos',
                   onTap: () => context.go('/productos'),
                 ),
+              if (user.esAdmin)
+                _NavLink(
+                  label: 'Gestión',
+                  onTap: () => context.go('/gestion'),
+                ),
               if (user.esUsuario)
                 badges.Badge(
                   badgeContent: Text(
@@ -379,6 +384,11 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                       value: 'panel',
                       child: Text('Panel de solicitudes'),
                     ),
+                  if (user.esAdmin)
+                    const PopupMenuItem(
+                      value: 'gestion',
+                      child: Text('Gestión'),
+                    ),
                   const PopupMenuItem(value: 'perfil', child: Text('Perfil')),
                   const PopupMenuDivider(),
                   const PopupMenuItem(
@@ -442,6 +452,8 @@ class _NavBarWidgetState extends State<NavBarWidget> {
         _abrirCarrito(context);
       case 'panel':
         context.go('/panel-solicitudes');
+      case 'gestion':
+        context.go('/gestion');
       case 'perfil':
         context.go('/perfil');
       case 'salir':

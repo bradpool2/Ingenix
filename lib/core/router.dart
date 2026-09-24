@@ -20,6 +20,7 @@ import '../screens/usuarios_screen.dart';
 import '../screens/productos_screen.dart';
 import '../screens/recuperar_password_screen.dart';
 import '../screens/restablecer_password_screen.dart';
+import '../screens/gestion_screen.dart';
 
 GoRouter appRouter(BuildContext context) {
   final auth = Provider.of<AuthService>(context, listen: false);
@@ -29,11 +30,12 @@ GoRouter appRouter(BuildContext context) {
     redirect: (context, state) {
       final logueado = auth.usuario != null;
       final enLogin = state.matchedLocation == '/login';
-      final enPublic = [
-        '/login',
-        '/register',
-        '/recuperar-password',
-      ].contains(state.matchedLocation) ||
+      final enPublic =
+          [
+            '/login',
+            '/register',
+            '/recuperar-password',
+          ].contains(state.matchedLocation) ||
           state.matchedLocation.startsWith('/restablecer-password/');
 
       if (!logueado && !enPublic) return '/';
@@ -50,6 +52,11 @@ GoRouter appRouter(BuildContext context) {
           auth.usuario?.esAdmin != true) {
         return '/panel-solicitudes';
       }
+      if (logueado &&
+          state.matchedLocation == '/gestion' &&
+          auth.usuario?.esAdmin != true) {
+        return '/home';
+      }
       return null;
     },
     routes: [
@@ -62,9 +69,8 @@ GoRouter appRouter(BuildContext context) {
       ),
       GoRoute(
         path: '/restablecer-password/:token',
-        builder: (c, s) => RestablecerPasswordScreen(
-          token: s.pathParameters['token']!,
-        ),
+        builder: (c, s) =>
+            RestablecerPasswordScreen(token: s.pathParameters['token']!),
       ),
       GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
       GoRoute(path: '/catalogo', builder: (c, s) => const CatalogoScreen()),
@@ -97,6 +103,7 @@ GoRouter appRouter(BuildContext context) {
       ),
       GoRoute(path: '/usuarios', builder: (c, s) => const UsuariosScreen()),
       GoRoute(path: '/productos', builder: (c, s) => const ProductosScreen()),
+      GoRoute(path: '/gestion', builder: (c, s) => const GestionScreen()),
     ],
   );
 }
