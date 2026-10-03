@@ -587,6 +587,7 @@ class _DeliveryCard extends StatelessWidget {
         case 'Aprobado':
           actions.add(
             DropdownButtonFormField<String>(
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Acción de aprobación',
               ),

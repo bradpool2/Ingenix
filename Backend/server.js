@@ -458,7 +458,7 @@ app.post('/usuarios/registro', async (req, res) => {
 
         const passEncriptada = await bcrypt.hash(pass, 10);
         const { rows } = await cliente.query(
-            'INSERT INTO usuario (nombre, correo, documento, direccion, telefono, pass, "rol_idRol") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING "idUsuario"',
+            'INSERT INTO usuario (nombre, correo, documento, direccion, telefono, pass, rol_idrol) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING idusuario AS "idUsuario"',
             [nombre, correo, documento, direccion || null, telefono || null, passEncriptada, rolFinal]
         );
         const idUsuario = rows[0].idUsuario;
@@ -494,7 +494,7 @@ app.get('/usuario', async (req, res) => {
         const campo = correo ? 'correo' : 'documento';
         const valor = correo || documento;
         const { rows } = await conexion.query(
-            `SELECT "idUsuario", nombre, correo, documento FROM usuario WHERE ${campo} = $1`,
+            `SELECT idusuario AS "idUsuario", nombre, correo, documento FROM usuario WHERE ${campo} = $1`,
             [valor]
         );
         res.json(rows);
@@ -656,7 +656,7 @@ app.post('/productos', verificarToken, soloAdmin, async (req, res) => {
     if (!nombre || !precio) return res.status(400).json({ message: 'Nombre y Precio son requeridos' });
     try {
         const { rows } = await conexion.query(
-            'INSERT INTO producto (nombre, descripcion, precio, stock) VALUES ($1, $2, $3, $4) RETURNING "idProducto"',
+            'INSERT INTO producto (nombre, descripcion, precio, stock) VALUES ($1, $2, $3, $4) RETURNING idproducto AS "idProducto"',
             [nombre, descripcion, precio, stock || 0]
         );
         res.status(201).json({ message: 'Producto creado', idProducto: rows[0].idProducto });
@@ -669,7 +669,7 @@ app.put('/productos/:id', verificarToken, soloAdmin, async (req, res) => {
     const { nombre, descripcion, precio, stock } = req.body;
     try {
         await conexion.query(
-            'UPDATE producto SET nombre=$1, descripcion=$2, precio=$3, stock=$4 WHERE "idProducto"=$5',
+            'UPDATE producto SET nombre=$1, descripcion=$2, precio=$3, stock=$4 WHERE idproducto=$5',
             [nombre, descripcion, precio, stock, req.params.id]
         );
         res.json({ message: 'Producto actualizado con éxito' });
@@ -680,8 +680,8 @@ app.put('/productos/:id', verificarToken, soloAdmin, async (req, res) => {
 
 app.delete('/productos/:id', verificarToken, soloAdmin, async (req, res) => {
     try {
-        await conexion.query('DELETE FROM producto_y_solicitud WHERE "producto_idProducto" = $1', [req.params.id]);
-        await conexion.query('DELETE FROM producto WHERE "idProducto" = $1', [req.params.id]);
+        await conexion.query('DELETE FROM producto_y_solicitud WHERE producto_idproducto = $1', [req.params.id]);
+        await conexion.query('DELETE FROM producto WHERE idproducto = $1', [req.params.id]);
         res.json({ message: 'Producto eliminado con éxito' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -691,10 +691,10 @@ app.delete('/productos/:id', verificarToken, soloAdmin, async (req, res) => {
 app.get('/productos/:id/categorias', async (req, res) => {
     try {
         const { rows } = await conexion.query(
-            `SELECT c."idCategoria", c.nombre
+            `SELECT c.idcategoria AS "idCategoria", c.nombre
              FROM categoria c
-             JOIN producto_categoria pc ON pc."categoria_idCategoria" = c."idCategoria"
-             WHERE pc."producto_idProducto" = $1`,
+             JOIN producto_categoria pc ON pc.categoria_idcategoria = c.idcategoria
+             WHERE pc.producto_idproducto = $1`,
             [req.params.id]
         );
         res.json(rows);
@@ -706,11 +706,11 @@ app.get('/productos/:id/categorias', async (req, res) => {
 app.put('/productos/:id/categorias', async (req, res) => {
     const { categorias } = req.body;
     try {
-        await conexion.query('DELETE FROM producto_categoria WHERE "producto_idProducto" = $1', [req.params.id]);
+        await conexion.query('DELETE FROM producto_categoria WHERE producto_idproducto = $1', [req.params.id]);
         if (categorias && categorias.length > 0) {
             for (const catId of categorias) {
                 await conexion.query(
-                    'INSERT INTO producto_categoria ("producto_idProducto", "categoria_idCategoria") VALUES ($1, $2)',
+                    'INSERT INTO producto_categoria (producto_idproducto, categoria_idcategoria) VALUES ($1, $2)',
                     [req.params.id, catId]
                 );
             }
@@ -736,7 +736,7 @@ app.post('/categorias', verificarToken, soloAdmin, async (req, res) => {
     if (!nombre) return res.status(400).json({ message: 'El nombre es obligatorio' });
     try {
         const { rows } = await conexion.query(
-            'INSERT INTO categoria (nombre) VALUES ($1) RETURNING "idCategoria"',
+            'INSERT INTO categoria (nombre) VALUES ($1) RETURNING idcategoria AS "idCategoria"',
             [nombre]
         );
         res.status(201).json({ idCategoria: rows[0].idCategoria, nombre });
@@ -747,7 +747,7 @@ app.post('/categorias', verificarToken, soloAdmin, async (req, res) => {
 
 app.delete('/categorias/:id', verificarToken, soloAdmin, async (req, res) => {
     try {
-        await conexion.query('DELETE FROM categoria WHERE "idCategoria" = $1', [req.params.id]);
+        await conexion.query('DELETE FROM categoria WHERE idcategoria = $1', [req.params.id]);
         res.json({ message: 'Categoría eliminada con éxito' });
     } catch (err) {
         res.status(500).json({ error: err.message });
