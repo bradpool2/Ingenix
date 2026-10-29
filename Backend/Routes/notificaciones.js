@@ -23,6 +23,7 @@ router.get('/notificaciones', verificarToken, (req, res) => {
       n.prioridad,
       n.requiere_accion,
       n.created_at,
+      n.created_at AS "createdAt",
       nu.leida,
       nu.leida_at,
       nu.recibida_at

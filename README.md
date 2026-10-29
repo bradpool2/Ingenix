@@ -81,6 +81,8 @@ backend está ejecutándose:
 
 - Swagger UI: `http://localhost:3000/api-docs`
 - Especificación OpenAPI JSON: `http://localhost:3000/api-docs.json`
+- Ruta compatible con el backend web: `http://localhost:3000/docs`
+- Especificación OpenAPI JSON: `http://localhost:3000/docs/openapi.json`
 
 Los endpoints protegidos requieren el JWT obtenido en `POST /login`. En Swagger
 UI usa el botón **Authorize** y escribe `Bearer <token>`.

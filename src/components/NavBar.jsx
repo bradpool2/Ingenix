@@ -8,6 +8,14 @@
   import { useRef } from 'react';
 
 
+  const formatearFechaNotificacion = (notificacion) => {
+    const fecha = notificacion.created_at ?? notificacion.createdAt ?? notificacion.fecha;
+    const fechaValida = fecha ? new Date(fecha) : null;
+    return fechaValida && !Number.isNaN(fechaValida.getTime())
+      ? fechaValida.toLocaleString('es-CO')
+      : '—';
+  };
+
   function NavBar() {
     const navigate = useNavigate();
     const user = JSON.parse(localStorage.getItem('user'));
@@ -218,7 +226,7 @@
                     </div>
                     <span className="notificacion-mensaje">{notificacion.mensaje}</span>
                     <small>
-                      {new Date(notificacion.created_at).toLocaleString('es-CO')}
+                      {formatearFechaNotificacion(notificacion)}
                     </small>
                   </div>
                   {notificacion.requiere_accion && rol === 'tecnico' && !notificacion.leida && (

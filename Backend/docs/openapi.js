@@ -337,6 +337,27 @@ const openapi = {
         responses: { 200: jsonResponse() },
       }),
     },
+    '/solicitudes/{id}/venta': {
+      parameters: [pathParam('id', 'ID de la solicitud')],
+      put: auth({
+        tags: ['Solicitudes'],
+        summary: 'Guardar o limpiar el precio final de compra',
+        requestBody: jsonBody(requestObject({ precioFinal: { type: 'number', minimum: 0, nullable: true } })),
+        responses: { 200: jsonResponse() },
+      }),
+    },
+    '/solicitudes/{id}/contraoferta': {
+      parameters: [pathParam('id', 'ID de la solicitud')],
+      post: auth({
+        tags: ['Solicitudes'],
+        summary: 'Guardar una contraoferta para una solicitud de venta',
+        requestBody: jsonBody(requestObject({
+          monto: { type: 'number', minimum: 0 },
+          comentario: { type: 'string' },
+        }, ['monto'])),
+        responses: { 201: jsonResponse() },
+      }),
+    },
     '/venta': {
       post: auth({
         tags: ['Ventas'],

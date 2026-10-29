@@ -59,6 +59,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapi, {
     customSiteTitle: 'Ingenix API - Swagger',
     swaggerOptions: { persistAuthorization: true },
 }));
+app.get('/docs/openapi.json', (req, res) => res.json(openapi));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi, {
+    customSiteTitle: 'Ingenix API - Swagger',
+    swaggerOptions: { persistAuthorization: true },
+}));
 app.use(rutasSolicitudes);
 app.use(rutasNotificaciones);
 
@@ -157,6 +162,7 @@ app.post('/recuperar-password', (req, res) => {
                 });
 
             const token = crypto.randomBytes(32).toString('hex');
+            const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
             const expiracion = new Date(
                 Date.now() + 15 * 60 * 1000
@@ -167,18 +173,25 @@ app.post('/recuperar-password', (req, res) => {
                  SET token_recuperacion = ?,
                      expiracion_token = ?
                  WHERE correo = ?`,
-                [token, expiracion, correo]
-            );
+                [tokenHash, expiracion, correo],
+                async (errorActualizacion, resultadoActualizacion) => {
+                    if (errorActualizacion) {
+                        console.error('❌ No se pudo guardar el token de recuperación:', errorActualizacion.message);
+                        return res.status(500).json({ message: 'No se pudo iniciar la recuperación de contraseña.' });
+                    }
+                    if (resultadoActualizacion.affectedRows === 0) {
+                        return res.status(404).json({ message: 'No existe una cuenta con ese correo.' });
+                    }
 
-            const enlace =
-                `http://localhost:5173/restablecer-password/${token}`;
+                    const enlace =
+                        `http://localhost:5173/restablecer-password/${token}`;
 
-            try {
-                await transporter.sendMail({
-                    from: process.env.EMAIL_USER,
-                    to: correo,
-                    subject: 'Recuperación de contraseña - Ingenix',
-                    html: `
+                    try {
+                        await transporter.sendMail({
+                            from: process.env.EMAIL_USER,
+                            to: correo,
+                            subject: 'Recuperación de contraseña - Ingenix',
+                            html: `
                 <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:30px;background:#f8fbfb;border-radius:12px;border:1px solid #ddd;">
                 
                     <h1 style="color:#99c1bb;text-align:center;">
@@ -233,17 +246,19 @@ app.post('/recuperar-password', (req, res) => {
                 
                 </div>
                     `
-                });
-            } catch (errorCorreo) {
-                console.error('❌ No se pudo enviar el correo de recuperación:', errorCorreo.message);
-                return res.status(503).json({
-                    message: 'No se pudo enviar el correo de recuperación. Intenta nuevamente más tarde.'
-                });
-            }
+                        });
+                    } catch (errorCorreo) {
+                        console.error('❌ No se pudo enviar el correo de recuperación:', errorCorreo.message);
+                        return res.status(503).json({
+                            message: 'No se pudo enviar el correo de recuperación. Intenta nuevamente más tarde.'
+                        });
+                    }
 
-            res.json({
-                message: 'Se envió un correo de recuperación.'
-            });
+                    res.json({
+                        message: 'Se envió un correo de recuperación.'
+                    });
+                }
+            );
 
         }
     );
@@ -260,12 +275,12 @@ app.post('/restablecer-password', async (req, res) => {
 
     conexion.query(
 
-        `SELECT *
+        `SELECT idusuario AS "idUsuario"
          FROM usuario
-         WHERE token_recuperacion = ?
+         WHERE token_recuperacion IN (?, ?)
          AND expiracion_token > NOW()`,
 
-        [token],
+        [crypto.createHash('sha256').update(token).digest('hex'), token],
 
         async (err, results) => {
 
@@ -289,7 +304,7 @@ app.post('/restablecer-password', async (req, res) => {
                  SET pass=?,
                      token_recuperacion=NULL,
                      expiracion_token=NULL
-                 WHERE idUsuario=?`,
+                 WHERE idusuario=?`,
 
                 [nuevaPassword, usuario.idUsuario],
 
@@ -647,14 +662,23 @@ app.get('/api/dashboard/estadisticas', (req, res) => {
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
             const datos = results[0];
+            const activosPeriodo = Number(datos.activos_periodo) || 0;
+            const activosHoy = Number(datos.activos_hoy) || 0;
+            const entregasPendientes = Number(datos.entregas_pendientes) || 0;
+            const mantenimientosPeriodo = Number(datos.mantenimientos_periodo) || 0;
+            const ventasPeriodo = Number(datos.ventas_periodo) || 0;
+            const totalEstimadoPeriodo = Number(datos.total_estimado_periodo) || 0;
             res.json({
                 periodo,
-                activosPeriodo: Number(datos.activos_periodo) || 0,
-                activosHoy: Number(datos.activos_hoy) || 0,
-                entregasPendientes: Number(datos.entregas_pendientes) || 0,
-                mantenimientosPeriodo: Number(datos.mantenimientos_periodo) || 0,
-                ventasPeriodo: Number(datos.ventas_periodo) || 0,
-                totalEstimadoPeriodo: Number(datos.total_estimado_periodo) || 0,
+                activosPeriodo,
+                activosHoy,
+                entregasPendientes,
+                mantenimientosPeriodo,
+                ventasPeriodo,
+                totalEstimadoPeriodo,
+                mantenimientos: `${mantenimientosPeriodo} Activos`,
+                entregas: `${entregasPendientes} Pendientes`,
+                totalEstimado: `$${totalEstimadoPeriodo.toLocaleString('es-CO')}`,
             });
         }
     );
@@ -669,7 +693,6 @@ app.get('/api/dashboard/ultimas-solicitudes', (req, res) => {
     DATE_FORMAT(fecha_registro, '%d/%m/%Y %H:%i') AS fecha,
     total_estimado
     FROM solicitud
-    WHERE fecha_registro >= CURRENT_DATE - INTERVAL '6 days'
     ORDER BY fecha_registro DESC
     LIMIT 5;`,
         (err, results) => {
