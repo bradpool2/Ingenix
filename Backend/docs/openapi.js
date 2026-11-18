@@ -79,6 +79,7 @@ const openapi = {
     { name: 'Reportes', description: 'Reportes financieros y operativos' },
     { name: 'Ventas', description: 'Ventas realizadas desde el carrito' },
     { name: 'Notificaciones', description: 'Notificaciones y acciones pendientes' },
+    { name: 'Aplicación móvil', description: 'Rutas compatibles para la aplicación móvil' },
   ],
   paths: {
     '/': {
@@ -281,6 +282,33 @@ const openapi = {
     },
     '/solicitudes/mis-solicitudes': {
       get: auth({ tags: ['Solicitudes'], summary: 'Listar solicitudes del cliente autenticado', responses: { 200: jsonResponse() } }),
+    },
+    '/api/mis-solicitudes': {
+      get: auth({ tags: ['Aplicación móvil'], summary: 'Listar solicitudes del cliente autenticado en formato móvil', responses: { 200: jsonResponse() } }),
+    },
+    '/api/tecnico/solicitudes': {
+      get: auth({ tags: ['Aplicación móvil'], summary: 'Listar solicitudes para la aplicación móvil del técnico', responses: { 200: jsonResponse() } }),
+    },
+    '/api/tecnico/solicitudes/{id}/estado': {
+      parameters: [pathParam('id', 'ID de la solicitud')],
+      put: auth({
+        tags: ['Aplicación móvil'],
+        summary: 'Actualizar estado desde la aplicación móvil del técnico',
+        requestBody: jsonBody(requestObject({ nuevoEstado: status }, ['nuevoEstado'])),
+        responses: { 200: jsonResponse() },
+      }),
+    },
+    '/api/reportes/dashboard': {
+      get: auth({
+        tags: ['Aplicación móvil'],
+        summary: 'Obtener resumen de solicitudes para el dashboard móvil',
+        parameters: [{
+          name: 'periodo',
+          in: 'query',
+          schema: { type: 'string', enum: ['semanal', 'mensual', 'anual'], default: 'mensual' },
+        }],
+        responses: { 200: jsonResponse() },
+      }),
     },
     '/solicitudes/cliente': {
       post: {

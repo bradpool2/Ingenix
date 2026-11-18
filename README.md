@@ -34,6 +34,11 @@ Sistema de gestion para reparacion, mantenimiento y comercializacion de joyeria 
    ```
 
 La API queda disponible en `http://localhost:3000` y Vite en `http://localhost:5173`.
+Ejecuta `npm run server` una sola vez: ese backend atiende tanto a la web como a la
+aplicación móvil. El puerto predeterminado es `3000`; se puede cambiar con la
+variable de entorno `PORT`. Para un teléfono físico, configura la app móvil para
+usar la IP local de este equipo y el mismo puerto (no `localhost`, que apuntaría
+al propio teléfono).
 
 ## Notificaciones
 
@@ -86,6 +91,12 @@ backend está ejecutándose:
 
 Los endpoints protegidos requieren el JWT obtenido en `POST /login`. En Swagger
 UI usa el botón **Authorize** y escribe `Bearer <token>`.
+
+La API también conserva rutas de compatibilidad para la aplicación móvil:
+`GET /api/mis-solicitudes`, `GET /api/tecnico/solicitudes`,
+`PUT /api/tecnico/solicitudes/:id/estado` (acepta `nuevoEstado`) y
+`GET /api/reportes/dashboard`. Estas rutas usan la misma base de datos,
+autenticación y proceso del backend principal.
 
 ## Almacenado automático
 

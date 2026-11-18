@@ -264,6 +264,64 @@ router.get('/solicitudes/mis-solicitudes', verificarToken, (req, res) => {
   });
 });
 
+router.get('/api/mis-solicitudes', verificarToken, (req, res) => {
+  const query = `
+    SELECT
+      s.idsolicitud AS "idSolicitud",
+      s.numeroorden AS "numeroOrden",
+      s.fecha_registro,
+      s.total_estimado,
+      s.estado,
+      s.urgencia,
+      COALESCE(STRING_AGG(COALESCE(ps.detalle_servicio, ''), ', '), '') AS servicios
+    FROM solicitud s
+    INNER JOIN cliente c ON c.idcliente = s.cliente_idcliente
+    LEFT JOIN producto_y_solicitud ps
+      ON ps.solicitud_idSolicitud = s.idSolicitud
+    WHERE c.usuario_idusuario = ?
+    GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro,
+      s.total_estimado, s.estado, s.urgencia
+    ORDER BY s.fecha_registro DESC
+  `;
+
+  conexion.query(query, [req.usuario.id], (error, resultados) => {
+    if (error) return res.status(500).json({ error: error.message });
+    const solicitudes = resultados.map((solicitud) => ({
+      ...solicitud,
+      servicios: solicitud.servicios || 'Sin servicios',
+      fecha_registro: solicitud.fecha_registro
+        ? new Date(solicitud.fecha_registro).toISOString().slice(0, 10)
+        : null,
+    }));
+    res.json(solicitudes);
+  });
+});
+
+router.get('/api/tecnico/solicitudes', verificarToken, soloTecnico, (req, res) => {
+  const params = [];
+  const filtroTecnico = req.usuario.rol === 'tecnico'
+    ? 'WHERE (s.estado = ? OR s.tecnico_asignado = ? OR s.tecnico_asignado = ? OR u.nombre = ?)'
+    : '';
+  if (filtroTecnico) {
+    const userId = String(req.usuario.id ?? '');
+    params.push('Pendiente', userId, userId, req.usuario.nombre || '');
+  }
+
+  conexion.query(
+    `SELECT s.idsolicitud, TO_CHAR(s.fecha_registro, 'DD/MM/YYYY') AS fecha,
+            s.total_estimado, s.estado
+     FROM solicitud s
+     LEFT JOIN usuario u ON u.idusuario::text = s.tecnico_asignado::text
+     ${filtroTecnico}
+     ORDER BY s.fecha_registro DESC`,
+    params,
+    (error, resultados) => {
+      if (error) return res.status(500).json({ error: error.message });
+      res.json(resultados);
+    }
+  );
+});
+
 // Solicitudes de mantenimiento archivadas. Solo el personal interno puede consultarlas.
 router.get('/solicitudes/almacenado', verificarToken, soloTecnico, (req, res) => {
   const query = `
@@ -614,9 +672,10 @@ router.get('/solicitudes/:id', (req, res) => {
 });
 
 // Cambiar estado
-router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) => {
+const cambiarEstadoSolicitud = (req, res) => {
   const { id } = req.params;
-  const { estado, tecnico_asignado, observacion_admin } = req.body;
+  const { tecnico_asignado, observacion_admin } = req.body;
+  const estado = req.body.estado ?? req.body.nuevoEstado;
   const estadosMantenimiento = ['Pendiente', 'En proceso', 'Terminado', 'En revision', 'Aprobado', 'Entregado', 'Almacenado', 'Cancelado'];
   const estadosVenta = ['Pendiente', 'En revision', 'Aprobado', 'Entregado', 'Cancelado', 'Almacenado'];
 
@@ -676,7 +735,10 @@ router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) =>
       });
     }
   );
-});
+};
+
+router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, cambiarEstadoSolicitud);
+router.put('/api/tecnico/solicitudes/:id/estado', verificarToken, soloTecnico, cambiarEstadoSolicitud);
 
 router.put('/solicitudes/:id/venta', verificarToken, soloTecnico, (req, res) => {
   const { id } = req.params;

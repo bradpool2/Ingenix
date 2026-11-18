@@ -18,7 +18,7 @@ import { crearNotificacion } from './Backend/Services/notificaciones.js';
 import openapi from './Backend/docs/openapi.js';
 
 const app = express();
-const PUERTO = 3000;
+const PUERTO = Number(process.env.PORT || 3000);
 
 const obtenerOcrearCliente = (usuario) => new Promise((resolve, reject) => {
     conexion.query(
@@ -66,6 +66,32 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi, {
 }));
 app.use(rutasSolicitudes);
 app.use(rutasNotificaciones);
+app.get('/api/reportes/dashboard', verificarToken, soloAdmin, async (req, res) => {
+    const periodo = ['semanal', 'mensual', 'anual'].includes(req.query.periodo)
+        ? req.query.periodo
+        : 'mensual';
+    const intervalos = {
+        semanal: "CURRENT_DATE - INTERVAL '6 days'",
+        mensual: "CURRENT_DATE - INTERVAL '1 month'",
+        anual: "CURRENT_DATE - INTERVAL '1 year'",
+    };
+
+    try {
+        const { rows } = await conexion.query(
+            `SELECT
+                COUNT(*)::integer AS total_solicitudes,
+                COUNT(*) FILTER (WHERE tipodesolicitud_iddesolicitud = 1)::integer AS mantenimientos,
+                COUNT(*) FILTER (WHERE tipodesolicitud_iddesolicitud = 4)::integer AS ventas,
+                COUNT(*) FILTER (WHERE estado = 'Entregado')::integer AS entregadas,
+                COALESCE(SUM(total_estimado), 0)::numeric AS total_estimado
+             FROM solicitud
+             WHERE fecha_registro >= ${intervalos[periodo]}`
+        );
+        res.json({ periodo, generadoEn: new Date().toISOString(), ...rows[0] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ─── Multer (imágenes) ────────────────────────────────────────────────────────
 const storage = multer.diskStorage({
