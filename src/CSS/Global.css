@@ -997,6 +997,8 @@ color: #292814;
 
 textarea.input-detalle {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   resize: vertical;
   min-height: 100px;
   font-family: inherit;
