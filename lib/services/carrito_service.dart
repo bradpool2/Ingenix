@@ -8,14 +8,21 @@ class CarritoService extends ChangeNotifier {
   int    get totalItems   => _items.fold(0, (acc, i) => acc + i.cantidad);
   double get totalPrecio  => _items.fold(0, (acc, i) => acc + i.subtotal);
 
-  void agregar(Producto producto) {
+  bool agregar(Producto producto) {
     final idx = _items.indexWhere((i) => i.producto.idProducto == producto.idProducto);
     if (idx >= 0) {
+      if (_items[idx].cantidad >= _items[idx].producto.stock) {
+        return false;
+      }
       _items[idx].cantidad++;
     } else {
+      if (producto.stock < 1) {
+        return false;
+      }
       _items.add(ItemCarrito(producto: producto));
     }
     notifyListeners();
+    return true;
   }
 
   void disminuir(int idProducto) {

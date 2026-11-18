@@ -205,42 +205,80 @@ class _ProductosScreenState extends State<ProductosScreen> {
                   controller: name,
                   decoration: const InputDecoration(labelText: 'Nombre *'),
                 ),
+                const SizedBox(height: 22),
                 TextField(
                   controller: description,
                   decoration: const InputDecoration(labelText: 'Descripción'),
                 ),
+                const SizedBox(height: 22),
                 TextField(
                   controller: price,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(labelText: 'Precio *'),
                 ),
+                const SizedBox(height: 22),
                 TextField(
                   controller: stock,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(labelText: 'Stock'),
                 ),
-                const SizedBox(height: 12),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Categorías'),
-                ),
-                Wrap(
-                  spacing: 6,
-                  children: _categories.map((category) {
-                    final id =
-                        int.tryParse(
-                          (category['idCategoria'] ?? category['idcategoria'])
-                              .toString(),
-                        ) ??
-                        0;
-                    return FilterChip(
-                      label: Text(category['nombre']?.toString() ?? ''),
-                      selected: selected.contains(id),
-                      onSelected: (value) => setDialogState(
-                        () => value ? selected.add(id) : selected.remove(id),
+                const SizedBox(height: 26),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: IngenixTheme.fondo,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: IngenixTheme.principal.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Categorías',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                    );
-                  }).toList(),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Selecciona una o varias categorías para el producto.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: IngenixTheme.textoSec,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_categories.isEmpty)
+                        const Text(
+                          'No hay categorías disponibles.',
+                          style: TextStyle(color: IngenixTheme.textoSec),
+                        )
+                      else
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: _categories.map((category) {
+                            final id =
+                                int.tryParse(
+                                  (category['idCategoria'] ??
+                                          category['idcategoria'])
+                                      .toString(),
+                                ) ??
+                                0;
+                            return FilterChip(
+                              label: Text(category['nombre']?.toString() ?? ''),
+                              selected: selected.contains(id),
+                              onSelected: (value) => setDialogState(
+                                () => value
+                                    ? selected.add(id)
+                                    : selected.remove(id),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -314,35 +352,50 @@ class _ProductosScreenState extends State<ProductosScreen> {
                   ),
                 ),
                 if (_showCategories) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _categoryController,
-                          decoration: const InputDecoration(
-                            labelText: 'Nueva categoría',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: _createCategory,
-                        icon: const Icon(Icons.add_circle_outline),
-                      ),
-                    ],
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _categoryController,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de la categoría',
+                      hintText: 'Ej. Herramientas',
+                      prefixIcon: Icon(Icons.label_outline),
+                    ),
+                    onSubmitted: (_) => _createCategory(),
                   ),
-                  Wrap(
-                    spacing: 8,
-                    children: _categories
-                        .map(
-                          (category) => Chip(
-                            label: Text(category['nombre']?.toString() ?? ''),
-                            onDeleted: () => _deleteCategory(category),
-                          ),
-                        )
-                        .toList(),
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      onPressed: _createCategory,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Agregar categoría'),
+                    ),
                   ),
+                  if (_categories.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Categorías existentes',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: _categories
+                          .map(
+                            (category) => Chip(
+                              label: Text(
+                                category['nombre']?.toString() ?? '',
+                              ),
+                              onDeleted: () => _deleteCategory(category),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
                 ],
               ],
             ),

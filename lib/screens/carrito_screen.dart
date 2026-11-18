@@ -117,6 +117,7 @@ class CarritoScreen extends StatelessWidget {
       nombre: item.producto.nombre,
       precio: _formatoMoneda(item.producto.precio),
       cantidad: item.cantidad,
+      puedeAumentar: item.cantidad < item.producto.stock,
       onDisminuir: () => carrito.disminuir(item.producto.idProducto),
       onAumentar: () => carrito.agregar(item.producto),
       onEliminar: () => carrito.eliminar(item.producto.idProducto),
@@ -159,6 +160,7 @@ class _ProductoCarrito extends StatelessWidget {
   final String nombre;
   final String precio;
   final int cantidad;
+  final bool puedeAumentar;
   final VoidCallback onDisminuir;
   final VoidCallback onAumentar;
   final VoidCallback onEliminar;
@@ -167,6 +169,7 @@ class _ProductoCarrito extends StatelessWidget {
     required this.nombre,
     required this.precio,
     required this.cantidad,
+    required this.puedeAumentar,
     required this.onDisminuir,
     required this.onAumentar,
     required this.onEliminar,
@@ -207,7 +210,10 @@ class _ProductoCarrito extends StatelessWidget {
                 ),
               ),
             ),
-            _BtnCantidad(icono: Icons.add, onTap: onAumentar),
+            _BtnCantidad(
+              icono: Icons.add,
+              onTap: puedeAumentar ? onAumentar : null,
+            ),
             const SizedBox(width: 14),
             _BtnCantidad(
               icono: Icons.close,
@@ -223,7 +229,7 @@ class _ProductoCarrito extends StatelessWidget {
 
 class _BtnCantidad extends StatelessWidget {
   final IconData icono;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Color? color;
   const _BtnCantidad({required this.icono, required this.onTap, this.color});
 
@@ -236,7 +242,9 @@ class _BtnCantidad extends StatelessWidget {
         height: 36,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: color ?? IngenixTheme.principal,
+          color: onTap == null
+              ? IngenixTheme.textoSec.withValues(alpha: 0.35)
+              : color ?? IngenixTheme.principal,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icono, size: 16, color: Colors.white),

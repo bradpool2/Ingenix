@@ -355,11 +355,13 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
                 ElevatedButton(
                   onPressed: producto.stock > 0
                       ? () {
-                          carrito.agregar(producto);
+                          final agregado = carrito.agregar(producto);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                '${producto.nombre} agregado al carrito',
+                                agregado
+                                    ? '${producto.nombre} agregado al carrito'
+                                    : 'No hay más unidades disponibles de ${producto.nombre}',
                               ),
                               duration: const Duration(seconds: 1),
                             ),

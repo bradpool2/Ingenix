@@ -91,13 +91,42 @@ class CarritoPlegableScreen extends StatelessWidget {
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      Text(
-                                        'Cantidad: ${item.cantidad}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: IngenixTheme.textoSec,
-                                          decoration: TextDecoration.none,
-                                        ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _ControlCantidadPlegable(
+                                            icon: Icons.remove,
+                                            tooltip: 'Disminuir cantidad',
+                                            onPressed: () => carrito.disminuir(
+                                              item.producto.idProducto,
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                            child: Text(
+                                              '${item.cantidad}',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: IngenixTheme.texto,
+                                                decoration: TextDecoration.none,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          _ControlCantidadPlegable(
+                                            icon: Icons.add,
+                                            tooltip: 'Aumentar cantidad',
+                                            onPressed:
+                                                item.cantidad <
+                                                    item.producto.stock
+                                                ? () => carrito.agregar(
+                                                    item.producto,
+                                                  )
+                                                : null,
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -181,6 +210,33 @@ class CarritoPlegableScreen extends StatelessWidget {
                   ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ControlCantidadPlegable extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  const _ControlCantidadPlegable({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: IconButton(
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        onPressed: onPressed,
+        icon: Icon(icon, size: 16),
       ),
     );
   }
