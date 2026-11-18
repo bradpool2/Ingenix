@@ -397,7 +397,10 @@ const openapi = {
           detallePago: { type: 'string' },
           productos: { type: 'array', items: { $ref: '#/components/schemas/VentaProducto' } },
         }, ['idUsuario', 'total', 'productos'])),
-        responses: { 201: jsonResponse() },
+        responses: {
+          201: jsonResponse(),
+          409: { description: 'Stock insuficiente o producto no disponible' },
+        },
       }),
     },
     '/ventas/{idUsuario}': {

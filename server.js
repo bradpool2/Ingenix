@@ -887,38 +887,123 @@ app.post('/venta', verificarToken, (req, res) => {
     if (usuarioSolicitado && usuarioSolicitado !== usuarioAutenticado) {
         return res.status(403).json({ message: 'El usuario de la venta no coincide con la sesión activa.' });
     }
-    if (!total || !productos || productos.length === 0) {
+    if (total == null || !Array.isArray(productos) || productos.length === 0) {
         return res.status(400).json({ message: 'Faltan datos para registrar la venta' });
     }
 
-    conexion.query(
-        "INSERT INTO Venta (Fecha, Estado, total, idUsuario) VALUES (CURDATE(), 'pagado', ?, ?)",
-        [total, usuarioAutenticado],
-        (err, resultVenta) => {
-            if (err) return res.status(500).json({ error: err.message });
-
-            const idVenta = resultVenta.insertId;
-            const valores = productos.map(p => [p.cantidad, p.precioUnitario, p.cantidad * p.precioUnitario, idVenta, p.idProducto]);
-
-            conexion.query(
-                'INSERT INTO VentaDetalle (cantidad, precioUnitario, subtotal, Venta_idVenta, producto_idProducto) VALUES ?',
-                [valores],
-                (err2) => {
-                    if (err2) return res.status(500).json({ error: err2.message });
-
-                    const referencia = 'PAY-' + Date.now();
-                    conexion.query(
-                        'INSERT INTO pago (Venta_idVenta, metodoPago, referenciaPago, detallePago, estadoPago) VALUES (?, ?, ?, ?, ?)',
-                        [idVenta, metodoPago, referencia, detallePago || null, 'aprobado'],
-                        (err3) => {
-                            if (err3) return res.status(500).json({ error: err3.message });
-                            res.status(201).json({ message: 'Venta y pago registrados correctamente', idVenta, referencia });
-                        }
-                    );
-                }
-            );
+    const cantidadesPorProducto = new Map();
+    for (const producto of productos) {
+        const idProducto = Number(producto.idProducto ?? producto.idproducto);
+        const cantidad = Number(producto.cantidad);
+        if (!Number.isSafeInteger(idProducto) || idProducto < 1
+            || !Number.isSafeInteger(cantidad) || cantidad < 1) {
+            return res.status(400).json({ message: 'El carrito contiene un producto o cantidad no válida.' });
         }
-    );
+        const cantidadAcumulada = (cantidadesPorProducto.get(idProducto) || 0) + cantidad;
+        if (!Number.isSafeInteger(cantidadAcumulada)) {
+            return res.status(400).json({ message: 'La cantidad total de un producto no es válida.' });
+        }
+        cantidadesPorProducto.set(idProducto, cantidadAcumulada);
+    }
+
+    conexion.transaction(async (transaccion) => {
+        const idsProducto = [...cantidadesPorProducto.keys()].sort((a, b) => a - b);
+        const marcadores = idsProducto.map(() => '?').join(', ');
+        const inventario = await transaccion.query(
+            `SELECT idProducto AS "idProducto", nombre, precio, stock
+             FROM producto
+             WHERE idProducto IN (${marcadores})
+             ORDER BY idProducto
+             FOR UPDATE`,
+            idsProducto
+        );
+        const productosPorId = new Map(
+            inventario.map((producto) => [Number(producto.idProducto ?? producto.idproducto), producto])
+        );
+
+        for (const [idProducto, cantidad] of cantidadesPorProducto) {
+            const producto = productosPorId.get(idProducto);
+            if (!producto) {
+                const error = new Error(`El producto #${idProducto} ya no está disponible.`);
+                error.status = 409;
+                throw error;
+            }
+
+            if (producto.stock != null && cantidad > Number(producto.stock)) {
+                const error = new Error(
+                    `Stock insuficiente para ${producto.nombre}. Disponible: ${producto.stock}.`
+                );
+                error.status = 409;
+                throw error;
+            }
+        }
+
+        const lineasVenta = [...cantidadesPorProducto].map(([idProducto, cantidad]) => {
+            const producto = productosPorId.get(idProducto);
+            const precio = Number(producto.precio);
+            if (!Number.isFinite(precio) || precio < 0) {
+                throw new Error(`El precio de ${producto.nombre} no es válido.`);
+            }
+            return { idProducto, cantidad, precio };
+        });
+        const totalCalculado = lineasVenta.reduce(
+            (suma, linea) => suma + linea.cantidad * linea.precio,
+            0
+        );
+
+        for (const linea of lineasVenta) {
+            const producto = productosPorId.get(linea.idProducto);
+            if (producto.stock == null) continue;
+
+            const resultadoStock = await transaccion.query(
+                `UPDATE producto
+                 SET stock = stock - ?
+                 WHERE idProducto = ? AND stock >= ?`,
+                [linea.cantidad, linea.idProducto, linea.cantidad]
+            );
+            if (resultadoStock.affectedRows === 0) {
+                const error = new Error(`Stock insuficiente para ${producto.nombre}.`);
+                error.status = 409;
+                throw error;
+            }
+        }
+
+        const ventas = await transaccion.query(
+            "INSERT INTO Venta (Fecha, Estado, total, idUsuario) VALUES (CURDATE(), 'pagado', ?, ?)",
+            [totalCalculado, usuarioAutenticado]
+        );
+        const idVenta = ventas.insertId;
+        const valores = lineasVenta.map((linea) => [
+            linea.cantidad,
+            linea.precio,
+            linea.cantidad * linea.precio,
+            idVenta,
+            linea.idProducto,
+        ]);
+        await transaccion.query(
+            'INSERT INTO VentaDetalle (cantidad, precioUnitario, subtotal, Venta_idVenta, producto_idProducto) VALUES ?',
+            [valores]
+        );
+
+        const referencia = 'PAY-' + Date.now();
+        await transaccion.query(
+            'INSERT INTO pago (Venta_idVenta, metodoPago, referenciaPago, detallePago, estadoPago) VALUES (?, ?, ?, ?, ?)',
+            [idVenta, metodoPago, referencia, detallePago || null, 'aprobado']
+        );
+
+        return { idVenta, referencia, total: totalCalculado };
+    })
+        .then((resultado) => res.status(201).json({
+            message: 'Venta y pago registrados correctamente',
+            ...resultado,
+        }))
+        .catch((error) => {
+            if (error.status) {
+                return res.status(error.status).json({ message: error.message });
+            }
+            console.error('❌ No se pudo registrar la venta:', error.message);
+            return res.status(500).json({ message: 'No se pudo registrar la venta.' });
+        });
 });
 
 app.get('/ventas/:idUsuario', verificarToken, (req, res) => {

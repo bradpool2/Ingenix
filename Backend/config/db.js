@@ -72,29 +72,52 @@
         return key ? row[key] : undefined;
     };
 
+    const ejecutarQuery = async (cliente, sql, params = []) => {
+        const converted = convertQuery(sql, params);
+        const isInsert = /^\s*INSERT\s/i.test(converted.text);
+        const text = isInsert && !/\bRETURNING\b/i.test(converted.text)
+            ? `${converted.text.trim().replace(/;$/, '')} RETURNING *`
+            : converted.text;
+        const result = await cliente.query(text, converted.values);
+        const rows = result.rows;
+        rows.insertId = extractInsertId(rows[0]);
+        rows.affectedRows = result.rowCount;
+        return rows;
+    };
+
     const conexion = {
         query(sql, params, callback) {
             const values = Array.isArray(params) ? params : [];
             const done = typeof params === 'function' ? params : callback;
-            const converted = convertQuery(sql, values);
-            const isInsert = /^\s*INSERT\s/i.test(converted.text);
-            const text = isInsert && !/\bRETURNING\b/i.test(converted.text)
-                ? `${converted.text.trim().replace(/;$/, '')} RETURNING *`
-                : converted.text;
+            const promise = ejecutarQuery(pool, sql, values);
 
-            pool.query(text, converted.values, (error, result) => {
-                if (typeof done !== 'function') return;
+            if (typeof done !== 'function') return promise;
 
-                if (error) {
-                    done(error);
-                    return;
+            promise.then(
+                (rows) => done(null, rows),
+                (error) => done(error)
+            );
+        },
+        async transaction(callback) {
+            const cliente = await pool.connect();
+            try {
+                await cliente.query('BEGIN');
+                const transaccion = {
+                    query: (sql, params = []) => ejecutarQuery(cliente, sql, params),
+                };
+                const resultado = await callback(transaccion);
+                await cliente.query('COMMIT');
+                return resultado;
+            } catch (error) {
+                try {
+                    await cliente.query('ROLLBACK');
+                } catch (errorRollback) {
+                    console.error('❌ No se pudo revertir la transacción:', errorRollback.message);
                 }
-
-                const rows = result.rows;
-                rows.insertId = extractInsertId(rows[0]);
-                rows.affectedRows = result.rowCount;
-                done(null, rows);
-            });
+                throw error;
+            } finally {
+                cliente.release();
+            }
         },
     };
 

@@ -162,6 +162,7 @@ function Pago() {
       const data = await res.json();
 
       if (res.ok) {
+        const totalPagado = Number(data.total ?? total);
         setReferenciaPago(data.referencia);
 
         const listaProductos = carrito
@@ -172,7 +173,7 @@ function Pago() {
           .join("\n");
 
         alert(
-          `✅ ¡Has comprado exitosamente!\n\nProductos:\n${listaProductos}\n\nTotal: $${total.toLocaleString("es-CO")}\nReferencia: ${data.referencia}`,
+          `✅ ¡Has comprado exitosamente!\n\nProductos:\n${listaProductos}\n\nTotal: $${totalPagado.toLocaleString("es-CO")}\nReferencia: ${data.referencia}`,
         );
 
         localStorage.removeItem("carrito");

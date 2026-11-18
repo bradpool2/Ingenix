@@ -3,31 +3,27 @@ import { FaShoppingCart } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import "../CSS/Global.css";
 
+const leerCarrito = () => {
+  const productos = JSON.parse(localStorage.getItem("carrito") || "[]");
+  return Array.isArray(productos) ? productos : [];
+};
+
 function CarritoPlegable() {
   const [abierto, setAbierto] = useState(false);
   const [carrito, setCarrito] = useState([]);
 
   useEffect(() => {
     const cargarCarrito = () => {
-      const productos =
-        JSON.parse(localStorage.getItem("carrito")) ||
-        [];
-
-      setCarrito(productos);
+      setCarrito(leerCarrito());
     };
 
     cargarCarrito();
-
-    window.addEventListener(
-      "carritoActualizado",
-      cargarCarrito
-    );
+    window.addEventListener("carritoActualizado", cargarCarrito);
+    window.addEventListener("storage", cargarCarrito);
 
     return () => {
-      window.removeEventListener(
-        "carritoActualizado",
-        cargarCarrito
-      );
+      window.removeEventListener("carritoActualizado", cargarCarrito);
+      window.removeEventListener("storage", cargarCarrito);
     };
   }, []);
 
@@ -41,7 +37,12 @@ function CarritoPlegable() {
     <div className="carrito-container">
       <button
         className="btn-carrito"
-        onClick={() => setAbierto(!abierto)}
+        onClick={() => {
+          setCarrito(leerCarrito());
+          setAbierto((actual) => !actual);
+        }}
+        aria-label="Abrir carrito"
+        aria-expanded={abierto}
       >
         <FaShoppingCart />
         <span className="badge">
@@ -60,9 +61,9 @@ function CarritoPlegable() {
             <p>Tu carrito está vacío</p>
           ) : (
             <>
-              {carrito.map((item) => (
+              {carrito.map((item, index) => (
                 <div
-                  key={item.idProducto}
+                  key={item.idProducto ?? item.idproducto ?? item.id ?? `${item.nombre}-${index}`}
                   className="item-carrito"
                 >
                   <div>

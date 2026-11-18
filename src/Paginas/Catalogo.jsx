@@ -18,7 +18,7 @@ function Catalogo() {
       .then(([dataProductos, dataCategorias]) => {
         setProductos(Array.isArray(dataProductos) ? dataProductos.map((producto) => ({
           ...producto,
-          idProducto: producto.idProducto ?? producto.idproducto,
+          idProducto: producto.idProducto ?? producto.idproducto ?? producto.id,
         })) : []);
         setCategorias(dataCategorias);
         setCargando(false);
@@ -38,16 +38,46 @@ function Catalogo() {
   }
 
   function agregarAlCarrito(producto) {
-    const carrito = JSON.parse(localStorage.getItem("carrito")) || [];
-    const existe = carrito.find((item) => item.idProducto === producto.idProducto);
-
-    if (existe) {
-      existe.cantidad += 1;
-    } else {
-      carrito.push({ ...producto, cantidad: 1 });
+    const idProducto = producto.idProducto ?? producto.idproducto ?? producto.id;
+    if (idProducto == null) {
+      console.error("No se pudo agregar el producto porque no tiene un identificador.");
+      return;
     }
 
-    localStorage.setItem("carrito", JSON.stringify(carrito));
+    const carritoGuardado = JSON.parse(localStorage.getItem("carrito") || "[]");
+    const carrito = Array.isArray(carritoGuardado) ? carritoGuardado : [];
+    const idNormalizado = String(idProducto);
+    const itemExistente = carrito.find((item) => (
+      String(item.idProducto ?? item.idproducto ?? item.id) === idNormalizado
+    ));
+    const cantidadActual = Number(itemExistente?.cantidad) || 0;
+    const stockControlado = producto.stock !== null
+      && producto.stock !== undefined
+      && producto.stock !== "";
+    const stockDisponible = stockControlado ? Number(producto.stock) : null;
+    if (
+      stockControlado
+      && Number.isFinite(stockDisponible)
+      && cantidadActual >= stockDisponible
+    ) {
+      alert(`No hay más unidades disponibles de ${producto.nombre}.`);
+      return;
+    }
+
+    if (itemExistente) {
+      const carritoActualizado = carrito.map((item) => (
+        String(item.idProducto ?? item.idproducto ?? item.id) === idNormalizado
+          ? { ...item, idProducto, cantidad: (Number(item.cantidad) || 0) + 1 }
+          : item
+      ));
+      localStorage.setItem("carrito", JSON.stringify(carritoActualizado));
+    } else {
+      localStorage.setItem("carrito", JSON.stringify([
+        ...carrito,
+        { ...producto, idProducto, cantidad: 1 },
+      ]));
+    }
+
     window.dispatchEvent(new Event("carritoActualizado"));
   }
 
@@ -158,8 +188,13 @@ function Catalogo() {
                     <p style={{ textAlign: "center", color: "#777" }}>
                       Stock: {p.stock ?? 0}
                     </p>
-                    <button onClick={() => agregarAlCarrito(p)}>
-                      Agregar al carrito
+                    <button
+                      onClick={() => agregarAlCarrito(p)}
+                      disabled={p.stock != null && Number(p.stock) <= 0}
+                    >
+                      {p.stock != null && Number(p.stock) <= 0
+                        ? "Sin stock"
+                        : "Agregar al carrito"}
                     </button>
                   </div>
                 ))}

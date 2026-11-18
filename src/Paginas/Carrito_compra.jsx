@@ -44,14 +44,14 @@ function Carrito_compra() {
   }
 
   function aumentarCantidad(idProducto) {
-    const nuevoCarrito = carrito.map((item) =>
-      item.idProducto === idProducto
-        ? {
-            ...item,
-            cantidad: item.cantidad + 1,
-          }
-        : item
-    );
+    const nuevoCarrito = carrito.map((item) => {
+      if (String(item.idProducto) !== String(idProducto)) return item;
+      const stock = item.stock == null || item.stock === "" ? null : Number(item.stock);
+      if (stock !== null && Number.isFinite(stock) && Number(item.cantidad) >= stock) {
+        return item;
+      }
+      return { ...item, cantidad: (Number(item.cantidad) || 0) + 1 };
+    });
 
     actualizarCarrito(nuevoCarrito);
   }
@@ -117,6 +117,13 @@ function Carrito_compra() {
                             item.idProducto
                           )
                         }
+                        disabled={
+                          item.stock != null
+                          && item.stock !== ""
+                          && Number.isFinite(Number(item.stock))
+                          && Number(item.cantidad) >= Number(item.stock)
+                        }
+                        aria-label={`Aumentar cantidad de ${item.nombre}`}
                       >
                         +
                       </button>
