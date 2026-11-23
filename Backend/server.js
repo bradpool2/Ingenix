@@ -14,6 +14,16 @@ import { verificarToken, soloAdmin, soloTecnico } from './Middleware/Auth.js';
 import rutasSolicitudes from './Routes/solicitudes.js';
 import openapi from './docs/openapi.js';
 import swaggerUi from 'swagger-ui-express';
+import {
+    asegurarEsquemaRetiro,
+    proximoRecordatorioRetiro,
+    TERMINOS_RETIRO_VERSION,
+} from './retention.js';
+import {
+    asegurarEsquemaStock,
+    STOCK_ALERT_NOTIFICATION_ID_OFFSET,
+    sincronizarAlertasStock,
+} from './stock_alerts.js';
 
 // Las credenciales SMTP solo se cargan en el backend. Se prioriza .env.Front
 // cuando existe; ENV_FILE permite elegir explícitamente otro archivo.
@@ -30,6 +40,173 @@ const transporter = nodemailer.createTransport({
         pass: process.env.EMAIL_PASS
     }
 });
+
+const escaparHtml = (valor) => String(valor ?? '').replace(/[&<>"']/g, (caracter) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+})[caracter]);
+
+const sincronizarAlertasStockConAviso = async () => {
+    try {
+        await sincronizarAlertasStock(pool);
+        return null;
+    } catch (error) {
+        console.error('No se pudieron sincronizar las alertas de stock:', error.message);
+        return 'Las alertas de stock se actualizarán en el siguiente ciclo.';
+    }
+};
+
+let procesandoRecordatoriosRetiro = false;
+const procesarRecordatoriosRetiro = async () => {
+    if (procesandoRecordatoriosRetiro) return;
+    procesandoRecordatoriosRetiro = true;
+    try {
+        await asegurarEsquemaRetiro(pool);
+        const { rows: solicitudes } = await pool.query(
+            `SELECT s.idsolicitud AS "idSolicitud",
+                    s.numeroorden AS "numeroOrden",
+                    u.idusuario AS "idUsuario",
+                    u.nombre, u.correo,
+                    (timezone('America/Bogota', CURRENT_TIMESTAMP)::date -
+                     (s.fecha_listo_retiro AT TIME ZONE 'America/Bogota')::date)::integer
+                        AS "diasTranscurridos"
+             FROM solicitud s
+             JOIN cliente c ON c.idcliente = s.cliente_idcliente
+             JOIN usuario u ON u.idusuario = c.usuario_idusuario
+             WHERE s.estado = 'Aprobado'
+               AND s.fecha_listo_retiro IS NOT NULL
+               AND (timezone('America/Bogota', CURRENT_TIMESTAMP)::date -
+                    (s.fecha_listo_retiro AT TIME ZONE 'America/Bogota')::date) >= 1
+               AND EXISTS (
+                    SELECT 1
+                    FROM unnest(ARRAY[1, 15, 30]) AS vencimiento(dia)
+                    WHERE vencimiento.dia <=
+                        (timezone('America/Bogota', CURRENT_TIMESTAMP)::date -
+                         (s.fecha_listo_retiro AT TIME ZONE 'America/Bogota')::date)
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM notificacion_retiro nr
+                        WHERE nr.id_solicitud = s.idsolicitud
+                          AND nr.dia = vencimiento.dia
+                          AND nr.email_enviado_en IS NOT NULL
+                      )
+               )
+             ORDER BY s.fecha_listo_retiro
+            `
+        );
+
+        for (const solicitud of solicitudes) {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                const { rows: bloqueadas } = await client.query(
+                    `SELECT idsolicitud
+                     FROM solicitud
+                     WHERE idsolicitud = $1 AND estado = 'Aprobado'
+                     FOR UPDATE SKIP LOCKED`,
+                    [solicitud.idSolicitud]
+                );
+                if (bloqueadas.length === 0) {
+                    await client.query('COMMIT');
+                    continue;
+                }
+
+                const { rows: recordatorios } = await client.query(
+                    `SELECT dia, email_enviado_en AS "emailEnviadoEn"
+                     FROM notificacion_retiro
+                     WHERE id_solicitud = $1
+                     FOR UPDATE`,
+                    [solicitud.idSolicitud]
+                );
+                const diasEnviados = new Set(
+                    recordatorios
+                        .filter((recordatorio) => recordatorio.emailEnviadoEn)
+                        .map((recordatorio) => Number(recordatorio.dia))
+                );
+                const dia = proximoRecordatorioRetiro(
+                    Number(solicitud.diasTranscurridos),
+                    diasEnviados
+                );
+                if (dia === null) {
+                    await client.query('COMMIT');
+                    continue;
+                }
+
+                const mensaje = `Tu producto de la solicitud #${solicitud.numeroOrden ?? solicitud.idSolicitud} está listo para recoger. Han pasado ${dia} día${dia === 1 ? '' : 's'}; tienes 30 días calendario desde que quedó listo para recogerlo o solicitar un envío.`;
+                const { rows: insertadas } = await client.query(
+                    `INSERT INTO notificacion_retiro
+                        (id_usuario, id_solicitud, dia, titulo, mensaje)
+                     VALUES ($1, $2, $3, $4, $5)
+                     ON CONFLICT (id_solicitud, dia) DO NOTHING
+                     RETURNING id`,
+                    [
+                        solicitud.idUsuario,
+                        solicitud.idSolicitud,
+                        dia,
+                        `Recordatorio de retiro: día ${dia}`,
+                        mensaje,
+                    ]
+                );
+                let recordatorio = insertadas[0];
+                if (!recordatorio) {
+                    const existente = await client.query(
+                        `SELECT id, email_enviado_en AS "emailEnviadoEn"
+                         FROM notificacion_retiro
+                         WHERE id_solicitud = $1 AND dia = $2
+                         FOR UPDATE`,
+                        [solicitud.idSolicitud, dia]
+                    );
+                    recordatorio = existente.rows[0];
+                }
+
+                if (recordatorio && !recordatorio.emailEnviadoEn && solicitud.correo) {
+                    try {
+                        await transporter.sendMail({
+                            from: process.env.EMAIL_USER,
+                            to: solicitud.correo,
+                            subject: `Ingenix: producto listo para recoger (día ${dia})`,
+                            text: `${solicitud.nombre || ''}, ${mensaje}`,
+                            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:30px;">
+                                <h1 style="color:#99c1bb;text-align:center;">INGENIX</h1>
+                                <h2>Tu producto está listo para recoger</h2>
+                                <p>Hola ${escaparHtml(solicitud.nombre)},</p>
+                                <p>${escaparHtml(mensaje)}</p>
+                                <p>Si ya recogiste el producto o solicitaste un envío, puedes ignorar este recordatorio.</p>
+                            </div>`,
+                        });
+                        await client.query(
+                            `UPDATE notificacion_retiro
+                             SET email_enviado_en = CURRENT_TIMESTAMP
+                             WHERE id = $1`,
+                            [recordatorio.id]
+                        );
+                    } catch (errorCorreo) {
+                        console.error(
+                            `No se pudo enviar el recordatorio de retiro para la solicitud ${solicitud.idSolicitud}:`,
+                            errorCorreo.message
+                        );
+                    }
+                }
+                await client.query('COMMIT');
+            } catch (error) {
+                await client.query('ROLLBACK').catch(() => {});
+                console.error(
+                    `No se pudo procesar el recordatorio de retiro para la solicitud ${solicitud.idSolicitud}:`,
+                    error.message
+                );
+            } finally {
+                client.release();
+            }
+        }
+    } catch (error) {
+        console.error('No se pudieron procesar los recordatorios de retiro:', error.message);
+    } finally {
+        procesandoRecordatoriosRetiro = false;
+    }
+};
 
 // ─── Chequeo de arranque ────────────────────────────────────────────────────
 // Se revisa UNA vez al iniciar el servidor, para que en un PC nuevo el error
@@ -189,16 +366,38 @@ app.post('/login', async (req, res) => {
 // Notificaciones del usuario autenticado.
 app.get('/notificaciones', verificarToken, async (req, res) => {
     try {
+        await Promise.all([
+            asegurarEsquemaRetiro(pool),
+            asegurarEsquemaStock(pool),
+        ]);
         const { rows } = await conexion.query(
-            `SELECT n.idnotificacion AS "idNotificacion", n.titulo, n.mensaje,
-                    n.tipo, n.rol_destino AS "rolDestino",
-                    n.idsolicitud AS "idSolicitud", n.prioridad,
+            `SELECT n.idnotificacion::bigint AS "idNotificacion", n.titulo, n.mensaje,
+                    n.tipo::text AS tipo, n.rol_destino::text AS "rolDestino",
+                    n.idsolicitud::bigint AS "idSolicitud", n.prioridad::text AS prioridad,
                     n.requiere_accion AS "requiereAccion", n.created_at AS "createdAt",
                     COALESCE(nu.leida, false) AS leida
              FROM notificacion_usuario nu
              JOIN notificacion n ON n.idnotificacion = nu.id_notificacion
              WHERE nu.id_usuario = $1
-             ORDER BY n.created_at DESC
+             UNION ALL
+             SELECT (-nr.id)::bigint AS "idNotificacion", nr.titulo, nr.mensaje,
+                    'retiro'::text AS tipo, 'usuario'::text AS "rolDestino",
+                    nr.id_solicitud::bigint AS "idSolicitud", 'normal'::text AS prioridad,
+                    false AS "requiereAccion", nr.created_at AS "createdAt", nr.leida
+             FROM notificacion_retiro nr
+             WHERE nr.id_usuario = $1
+             UNION ALL
+             SELECT (-${STOCK_ALERT_NOTIFICATION_ID_OFFSET} - ns.id)::bigint
+                        AS "idNotificacion",
+                    'Stock crítico: ' || ns.nombre_producto AS titulo,
+                    'Quedan ' || ns.stock || ' unidades de ' || ns.nombre_producto ||
+                        '. Reponer este producto con urgencia.' AS mensaje,
+                    'stock'::text AS tipo, 'admin'::text AS "rolDestino",
+                    NULL::bigint AS "idSolicitud", 'urgente'::text AS prioridad,
+                    false AS "requiereAccion", ns.created_at AS "createdAt", ns.leida
+             FROM notificacion_stock ns
+             WHERE ns.id_usuario = $1
+             ORDER BY "createdAt" DESC
              LIMIT 50`,
             [req.usuario.id]
         );
@@ -210,10 +409,39 @@ app.get('/notificaciones', verificarToken, async (req, res) => {
 
 app.put('/notificaciones/:id/leida', verificarToken, async (req, res) => {
     try {
+        const numericId = Number(req.params.id);
+        if (
+            Number.isSafeInteger(numericId) &&
+            numericId < -STOCK_ALERT_NOTIFICATION_ID_OFFSET
+        ) {
+            await asegurarEsquemaStock(pool);
+            await conexion.query(
+                `UPDATE notificacion_stock SET leida = true
+                 WHERE id = $1 AND id_usuario = $2`,
+                [-numericId - STOCK_ALERT_NOTIFICATION_ID_OFFSET, req.usuario.id]
+            );
+            return res.json({ message: 'Notificación marcada como leída.' });
+        }
+        const idNotificacion = numericId;
+        if (!Number.isSafeInteger(idNotificacion) || idNotificacion === 0) {
+            return res.status(400).json({ message: 'Notificación no válida.' });
+        }
+        if (idNotificacion < 0) {
+            await Promise.all([
+                asegurarEsquemaRetiro(pool),
+                asegurarEsquemaStock(pool),
+            ]);
+            await conexion.query(
+                `UPDATE notificacion_retiro SET leida = true
+                 WHERE id = $1 AND id_usuario = $2`,
+                [-idNotificacion, req.usuario.id]
+            );
+            return res.json({ message: 'Notificación marcada como leída.' });
+        }
         await conexion.query(
             `UPDATE notificacion_usuario SET leida = true
              WHERE id_notificacion = $1 AND id_usuario = $2`,
-            [req.params.id, req.usuario.id]
+            [idNotificacion, req.usuario.id]
         );
         res.json({ message: 'Notificación marcada como leída.' });
     } catch (err) {
@@ -223,8 +451,17 @@ app.put('/notificaciones/:id/leida', verificarToken, async (req, res) => {
 
 app.put('/notificaciones/marcar-todas-leidas', verificarToken, async (req, res) => {
     try {
+        await asegurarEsquemaRetiro(pool);
         await conexion.query(
             'UPDATE notificacion_usuario SET leida = true WHERE id_usuario = $1',
+            [req.usuario.id]
+        );
+        await conexion.query(
+            'UPDATE notificacion_retiro SET leida = true WHERE id_usuario = $1',
+            [req.usuario.id]
+        );
+        await conexion.query(
+            'UPDATE notificacion_stock SET leida = true WHERE id_usuario = $1',
             [req.usuario.id]
         );
         res.json({ message: 'Notificaciones marcadas como leídas.' });
@@ -441,9 +678,13 @@ app.post('/restablecer-password', async (req, res) => {
 
 // ─── Registro público ─────────────────────────────────────────────────────────
 app.post('/usuarios/registro', async (req, res) => {
-    const { nombre, correo, documento, direccion, telefono, pass, rol_idRol } = req.body;
+    const {
+        nombre, correo, documento, direccion, telefono, pass, rol_idRol, aceptaTerminos,
+    } = req.body;
     if (!nombre || !correo || !documento || !pass)
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
+    if (aceptaTerminos !== true)
+        return res.status(400).json({ message: 'Debes aceptar los términos y condiciones.' });
 
     const rolFinal = rol_idRol || 3; // 3 = cliente, el rol por defecto de "Registrarse"
     const esCliente = Number(rolFinal) === 3;
@@ -453,13 +694,22 @@ app.post('/usuarios/registro', async (req, res) => {
     // un usuario "a medias" sin perfil de cliente, que es justo el bug que tenías.
     let cliente;
     try {
+        await asegurarEsquemaRetiro(pool);
         cliente = await pool.connect();
         await cliente.query('BEGIN');
 
         const passEncriptada = await bcrypt.hash(pass, 10);
         const { rows } = await cliente.query(
-            'INSERT INTO usuario (nombre, correo, documento, direccion, telefono, pass, rol_idrol) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING idusuario AS "idUsuario"',
-            [nombre, correo, documento, direccion || null, telefono || null, passEncriptada, rolFinal]
+            `INSERT INTO usuario (
+                nombre, correo, documento, direccion, telefono, pass, rol_idrol,
+                terminos_retiro_version, terminos_retiro_aceptados_en
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+             RETURNING idusuario AS "idUsuario"`,
+            [
+                nombre, correo, documento, direccion || null, telefono || null,
+                passEncriptada, rolFinal, TERMINOS_RETIRO_VERSION,
+            ]
         );
         const idUsuario = rows[0].idUsuario;
 
@@ -606,6 +856,59 @@ app.put('/usuarios/:id', verificarToken, async (req, res) => {
     }
 });
 
+app.put('/usuarios/:id/cambiar-password', verificarToken, async (req, res) => {
+    const idUsuario = Number(req.params.id);
+    if (!Number.isSafeInteger(idUsuario) || Number(req.usuario?.id) !== idUsuario) {
+        return res.status(403).json({ message: 'Solo puedes cambiar tu propia contraseña.' });
+    }
+
+    const { contrasenaActual, nuevaContrasena, confirmarContrasena } = req.body;
+    if (
+        typeof contrasenaActual !== 'string' ||
+        typeof nuevaContrasena !== 'string' ||
+        typeof confirmarContrasena !== 'string' ||
+        !contrasenaActual ||
+        !nuevaContrasena ||
+        !confirmarContrasena
+    ) {
+        return res.status(400).json({ message: 'Completa todos los campos de contraseña.' });
+    }
+    if (nuevaContrasena.length < 8) {
+        return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+    }
+    if (nuevaContrasena !== confirmarContrasena) {
+        return res.status(400).json({ message: 'La confirmación de contraseña no coincide.' });
+    }
+    if (nuevaContrasena === contrasenaActual) {
+        return res.status(400).json({ message: 'La nueva contraseña debe ser diferente a la actual.' });
+    }
+
+    try {
+        const { rows } = await conexion.query(
+            'SELECT pass FROM usuario WHERE idusuario = $1',
+            [idUsuario]
+        );
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+        if (!await bcrypt.compare(contrasenaActual, rows[0].pass)) {
+            return res.status(400).json({ message: 'La contraseña actual no es correcta.' });
+        }
+
+        const nuevaPasswordHash = await bcrypt.hash(nuevaContrasena, 10);
+        await conexion.query(
+            `UPDATE usuario
+             SET pass = $1, token_recuperacion = NULL, expiracion_token = NULL
+             WHERE idusuario = $2`,
+            [nuevaPasswordHash, idUsuario]
+        );
+        res.json({ message: 'Contraseña actualizada correctamente.' });
+    } catch (error) {
+        console.error('Error en PUT /usuarios/:id/cambiar-password:', error.message);
+        res.status(500).json({ message: 'No se pudo actualizar la contraseña.' });
+    }
+});
+
 app.delete('/usuarios/:id', verificarToken, soloAdmin, async (req, res) => {
     try {
         await conexion.query('DELETE FROM usuario WHERE idusuario = $1', [req.params.id]);
@@ -659,7 +962,12 @@ app.post('/productos', verificarToken, soloAdmin, async (req, res) => {
             'INSERT INTO producto (nombre, descripcion, precio, stock) VALUES ($1, $2, $3, $4) RETURNING idproducto AS "idProducto"',
             [nombre, descripcion, precio, stock || 0]
         );
-        res.status(201).json({ message: 'Producto creado', idProducto: rows[0].idProducto });
+        const advertenciaStock = await sincronizarAlertasStockConAviso();
+        res.status(201).json({
+            message: 'Producto creado',
+            idProducto: rows[0].idProducto,
+            ...(advertenciaStock ? { advertenciaStock } : {}),
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -672,7 +980,11 @@ app.put('/productos/:id', verificarToken, soloAdmin, async (req, res) => {
             'UPDATE producto SET nombre=$1, descripcion=$2, precio=$3, stock=$4 WHERE idproducto=$5',
             [nombre, descripcion, precio, stock, req.params.id]
         );
-        res.json({ message: 'Producto actualizado con éxito' });
+        const advertenciaStock = await sincronizarAlertasStockConAviso();
+        res.json({
+            message: 'Producto actualizado con éxito',
+            ...(advertenciaStock ? { advertenciaStock } : {}),
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -682,7 +994,11 @@ app.delete('/productos/:id', verificarToken, soloAdmin, async (req, res) => {
     try {
         await conexion.query('DELETE FROM producto_y_solicitud WHERE producto_idproducto = $1', [req.params.id]);
         await conexion.query('DELETE FROM producto WHERE idproducto = $1', [req.params.id]);
-        res.json({ message: 'Producto eliminado con éxito' });
+        const advertenciaStock = await sincronizarAlertasStockConAviso();
+        res.json({
+            message: 'Producto eliminado con éxito',
+            ...(advertenciaStock ? { advertenciaStock } : {}),
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1076,10 +1392,22 @@ app.get('/api/tecnico/solicitudes', verificarToken, soloTecnico, async (req, res
 app.put('/api/tecnico/solicitudes/:id/estado', verificarToken, soloTecnico, async (req, res) => {
     const { nuevoEstado } = req.body;
     try {
-        await conexion.query(
-            'UPDATE solicitud SET estado = $1 WHERE idSolicitud = $2',
+        await asegurarEsquemaRetiro(pool);
+        const result = await conexion.query(
+            `UPDATE solicitud
+             SET estado = $1,
+                 fecha_listo_retiro = CASE
+                    WHEN $1 = 'Aprobado' THEN
+                        CASE WHEN estado = 'Aprobado'
+                             THEN fecha_listo_retiro ELSE CURRENT_TIMESTAMP END
+                    ELSE NULL
+                 END
+             WHERE idSolicitud = $2`,
             [nuevoEstado, req.params.id]
         );
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Solicitud no encontrada.' });
+        }
         res.json({ message: `Solicitud #${req.params.id} actualizada a ${nuevoEstado}` });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1089,10 +1417,12 @@ app.put('/api/tecnico/solicitudes/:id/estado', verificarToken, soloTecnico, asyn
 // Solicitudes del cliente autenticado
 app.get('/api/mis-solicitudes', verificarToken, async (req, res) => {
     try {
+        await asegurarEsquemaRetiro(pool);
         const { rows } = await conexion.query(
                 `SELECT s.idSolicitud AS "idSolicitud",
                     s.numeroOrden AS "numeroOrden",
                     s.fecha_registro,
+                    s.fecha_listo_retiro AS "fechaListoRetiro",
                     s.total_estimado,
                     s.estado,
                     s.urgencia,
@@ -1125,4 +1455,16 @@ app.get('/api/mis-solicitudes', verificarToken, async (req, res) => {
 
 app.listen(PUERTO, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
+    void procesarRecordatoriosRetiro();
+    void sincronizarAlertasStockConAviso();
+    const recordatoriosIntervalo = setInterval(
+        () => void procesarRecordatoriosRetiro(),
+        15 * 60 * 1000
+    );
+    recordatoriosIntervalo.unref();
+    const stockIntervalo = setInterval(
+        () => void sincronizarAlertasStockConAviso(),
+        60 * 1000
+    );
+    stockIntervalo.unref();
 });

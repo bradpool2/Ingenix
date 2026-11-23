@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../services/auth_service.dart';
 import '../widgets/navbar_widget.dart';
 import '../widgets/panel_sidebar.dart';
+import '../widgets/aviso_retiro_widget.dart';
 
 class SolicitudMantenimientoScreen extends StatefulWidget {
   const SolicitudMantenimientoScreen({super.key});
@@ -252,6 +253,8 @@ class _SolicitudMantenimientoScreenState
                       'Registra el diagnóstico, los servicios y las piezas necesarias.',
                       style: TextStyle(color: IngenixTheme.textoSec),
                     ),
+                    const SizedBox(height: 14),
+                    const AvisoRetiroWidget(),
                     const SizedBox(height: 28),
                     _StepBar(
                       current: _step,

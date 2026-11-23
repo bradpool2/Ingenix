@@ -19,11 +19,20 @@ class PerfilScreen extends StatefulWidget {
 class _PerfilScreenState extends State<PerfilScreen> {
   bool _editando = false;
   bool _guardando = false;
+  bool _mostrarCambioPassword = false;
+  bool _guardandoPassword = false;
+  bool _verPasswordActual = false;
+  bool _verNuevaPassword = false;
+  bool _verConfirmacionPassword = false;
+  String? _errorPassword;
   late final TextEditingController _nombreCtrl;
   late final TextEditingController _correoCtrl;
   late final TextEditingController _telefonoCtrl;
   late final TextEditingController _direccionCtrl;
   late final TextEditingController _documentoCtrl;
+  final _passwordActualCtrl = TextEditingController();
+  final _nuevaPasswordCtrl = TextEditingController();
+  final _confirmarPasswordCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -43,6 +52,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
     _telefonoCtrl.dispose();
     _direccionCtrl.dispose();
     _documentoCtrl.dispose();
+    _passwordActualCtrl.dispose();
+    _nuevaPasswordCtrl.dispose();
+    _confirmarPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -90,14 +102,14 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     : user.rol,
               })
             : Usuario(
-                  idUsuario: user.idUsuario,
-                  nombre: _nombreCtrl.text.trim(),
-                  correo: _correoCtrl.text.trim(),
-                  rol: user.rol,
-                  telefono: telefono,
-                  direccion: _direccionCtrl.text.trim(),
-                  documento: _documentoCtrl.text.trim(),
-                );
+                idUsuario: user.idUsuario,
+                nombre: _nombreCtrl.text.trim(),
+                correo: _correoCtrl.text.trim(),
+                rol: user.rol,
+                telefono: telefono,
+                direccion: _direccionCtrl.text.trim(),
+                documento: _documentoCtrl.text.trim(),
+              );
         auth.actualizarUsuario(updated);
         setState(() => _editando = false);
         _mensaje('Datos actualizados correctamente');
@@ -124,6 +136,84 @@ class _PerfilScreenState extends State<PerfilScreen> {
       if (mounted) _mensaje('No se pudo conectar con el servidor', error: true);
     } finally {
       if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _cambiarPassword() async {
+    final actual = _passwordActualCtrl.text;
+    final nueva = _nuevaPasswordCtrl.text;
+    final confirmar = _confirmarPasswordCtrl.text;
+    String? error;
+
+    if (actual.isEmpty || nueva.isEmpty || confirmar.isEmpty) {
+      error = 'Completa todos los campos de contraseña.';
+    } else if (nueva.length < 8) {
+      error = 'La nueva contraseña debe tener al menos 8 caracteres.';
+    } else if (nueva != confirmar) {
+      error = 'La confirmación de contraseña no coincide.';
+    } else if (nueva == actual) {
+      error = 'La nueva contraseña debe ser diferente a la actual.';
+    }
+
+    if (error != null) {
+      setState(() => _errorPassword = error);
+      return;
+    }
+
+    final auth = context.read<AuthService>();
+    final user = auth.usuario!;
+    setState(() {
+      _guardandoPassword = true;
+      _errorPassword = null;
+    });
+
+    try {
+      final response = await http.put(
+        Uri.parse(
+          '${AppConstants.baseUrl}/usuarios/${user.idUsuario}/cambiar-password',
+        ),
+        headers: auth.headers,
+        body: jsonEncode({
+          'contrasenaActual': actual,
+          'nuevaContrasena': nueva,
+          'confirmarContrasena': confirmar,
+        }),
+      );
+
+      if (!mounted) return;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        _passwordActualCtrl.clear();
+        _nuevaPasswordCtrl.clear();
+        _confirmarPasswordCtrl.clear();
+        setState(() {
+          _mostrarCambioPassword = false;
+          _errorPassword = null;
+        });
+        _mensaje('Contraseña actualizada correctamente');
+      } else {
+        var detalle =
+            'No se pudo actualizar la contraseña (${response.statusCode}).';
+        try {
+          final data = jsonDecode(response.body);
+          if (data is Map) {
+            detalle = (data['message'] ?? data['error'] ?? detalle).toString();
+          }
+        } catch (_) {
+          // Conserva el mensaje con el código HTTP si la respuesta no es JSON.
+        }
+        setState(() => _errorPassword = detalle);
+
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          await auth.cerrarSesion();
+          if (mounted) context.go('/login');
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _errorPassword = 'No se pudo conectar con el servidor.');
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoPassword = false);
     }
   }
 
@@ -328,6 +418,131 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 onPressed: () => context.go('/home'),
                 child: const Text('Volver'),
               ),
+            ),
+          const SizedBox(height: 24),
+          const Divider(color: Color(0xFFE1ECEA), height: 1),
+          const SizedBox(height: 18),
+          const Text(
+            'Seguridad',
+            style: TextStyle(
+              color: IngenixTheme.texto,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (!_mostrarCambioPassword)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => setState(() {
+                  _mostrarCambioPassword = true;
+                  _errorPassword = null;
+                }),
+                icon: const Icon(Icons.lock_outline),
+                label: const Text('Cambiar contraseña'),
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _passwordActualCtrl,
+                  obscureText: !_verPasswordActual,
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña actual',
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(
+                        () => _verPasswordActual = !_verPasswordActual,
+                      ),
+                      icon: Icon(
+                        _verPasswordActual
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _nuevaPasswordCtrl,
+                  obscureText: !_verNuevaPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Nueva contraseña (mínimo 8 caracteres)',
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(
+                        () => _verNuevaPassword = !_verNuevaPassword,
+                      ),
+                      icon: Icon(
+                        _verNuevaPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _confirmarPasswordCtrl,
+                  obscureText: !_verConfirmacionPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Confirmar nueva contraseña',
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(
+                        () => _verConfirmacionPassword =
+                            !_verConfirmacionPassword,
+                      ),
+                      icon: Icon(
+                        _verConfirmacionPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_errorPassword != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _errorPassword!,
+                    style: const TextStyle(
+                      color: IngenixTheme.error,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton(
+                      onPressed: _guardandoPassword ? null : _cambiarPassword,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: IngenixTheme.principal,
+                        foregroundColor: IngenixTheme.texto,
+                      ),
+                      child: Text(
+                        _guardandoPassword
+                            ? 'Actualizando...'
+                            : 'Actualizar contraseña',
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: _guardandoPassword
+                          ? null
+                          : () => setState(() {
+                              _mostrarCambioPassword = false;
+                              _errorPassword = null;
+                              _passwordActualCtrl.clear();
+                              _nuevaPasswordCtrl.clear();
+                              _confirmarPasswordCtrl.clear();
+                            }),
+                      child: const Text('Cancelar'),
+                    ),
+                  ],
+                ),
+              ],
             ),
         ],
       ),

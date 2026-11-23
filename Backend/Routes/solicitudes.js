@@ -3,8 +3,9 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import conexion from '../config/db.js';
+import conexion, { pool } from '../config/db.js';
 import { verificarToken, soloAdmin, soloTecnico } from '../Middleware/Auth.js';
+import { asegurarEsquemaRetiro } from '../retention.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -287,6 +288,7 @@ const estadosAdmin = {
 // Solicitudes aprobadas que deben pasar al inventario.
 router.get('/solicitudes/almacenado', verificarToken, soloAdmin, async (req, res) => {
   try {
+    await asegurarEsquemaRetiro(pool);
     await conexion.query(`
       ALTER TABLE solicitud
         ADD COLUMN IF NOT EXISTS ubicacion TEXT,
@@ -297,7 +299,8 @@ router.get('/solicitudes/almacenado', verificarToken, soloAdmin, async (req, res
       UPDATE solicitud
       SET estado = 'Almacenado'
       WHERE estado = 'Aprobado'
-        AND fecha_registro <= CURRENT_TIMESTAMP - INTERVAL '30 days'
+        AND fecha_listo_retiro IS NOT NULL
+        AND (CURRENT_DATE - (fecha_listo_retiro AT TIME ZONE 'America/Bogota')::date) > 30
     `);
     const { rows } = await conexion.query(`
       SELECT s.idSolicitud AS "idSolicitud", s.numeroOrden AS "numeroOrden",
@@ -426,10 +429,12 @@ router.put('/solicitudes/:id/venta', verificarToken, soloAdmin, async (req, res)
 
 router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, async (req, res) => {
   try {
+    await asegurarEsquemaRetiro(pool);
     const result = await conexion.query(`
       UPDATE solicitud SET estado = 'Almacenado'
       WHERE estado = 'Aprobado'
-        AND fecha_registro <= CURRENT_TIMESTAMP - INTERVAL '30 days'
+        AND fecha_listo_retiro IS NOT NULL
+        AND (CURRENT_DATE - (fecha_listo_retiro AT TIME ZONE 'America/Bogota')::date) > 30
     `);
     res.json({ message: `Se archivaron ${result.rowCount} solicitudes.`, archivadas: result.rowCount });
   } catch (error) {
@@ -493,8 +498,15 @@ router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) =>
       return res.status(400).json({ error: 'Debes indicar el motivo de la devolución al técnico.' });
     }
 
-    let query = `UPDATE solicitud SET estado = ?`;
-    const params = [estado];
+    let query = `UPDATE solicitud
+                 SET estado = ?,
+                     fecha_listo_retiro = CASE
+                       WHEN ? = 'Aprobado' THEN
+                         CASE WHEN estado = 'Aprobado'
+                              THEN fecha_listo_retiro ELSE CURRENT_TIMESTAMP END
+                       ELSE NULL
+                     END`;
+    const params = [estado, estado];
 
     if (tecnico_asignado) {
       query += `, tecnico_asignado = ?`;
@@ -509,11 +521,15 @@ router.put('/solicitudes/:id/estado', verificarToken, soloTecnico, (req, res) =>
     query += ` WHERE idSolicitud = ?`;
     params.push(id);
 
-    conexion.query(query, params, (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
-      res.json({ message: 'Estado actualizado correctamente' });
-      });
+    asegurarEsquemaRetiro(pool)
+      .then(() => {
+        conexion.query(query, params, (err, result) => {
+          if (err) return res.status(500).json({ error: err.message });
+          if (result.affectedRows === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+          res.json({ message: 'Estado actualizado correctamente' });
+        });
+      })
+      .catch((error) => res.status(500).json({ error: error.message }));
   });
 });
 // Reporte financiero — semana / mes / año

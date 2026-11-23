@@ -22,6 +22,8 @@ class NavBarWidget extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _NavBarWidgetState extends State<NavBarWidget> {
+  static final Set<String> _stockAlertIdsShown = {};
+
   OverlayEntry? _carritoOverlay;
   Timer? _notificationTimer;
   List<Map<String, dynamic>> _notifications = [];
@@ -57,18 +59,77 @@ class _NavBarWidgetState extends State<NavBarWidget> {
       if (!mounted || response.statusCode != 200) return;
       final data = jsonDecode(response.body);
       if (data is List) {
+        Map<String, dynamic>? stockAlertToShow;
+        final notifications = data.whereType<Map>().map((item) {
+          final notification = Map<String, dynamic>.from(item);
+          notification['idNotificacion'] ??= notification['idnotificacion'];
+          notification['idSolicitud'] ??= notification['idsolicitud'];
+          notification['requiereAccion'] ??= notification['requiere_accion'];
+          notification['createdAt'] ??= notification['created_at'];
+          final id = notification['idNotificacion']?.toString();
+          if (notification['tipo']?.toString() == 'stock' && id != null) {
+            if (notification['leida'] != true &&
+                !_stockAlertIdsShown.contains(id)) {
+              stockAlertToShow ??= notification;
+            }
+            _stockAlertIdsShown.add(id);
+          }
+          return notification;
+        }).toList();
         setState(() {
-          _notifications = data.whereType<Map>().map((item) {
-            final notification = Map<String, dynamic>.from(item);
-            notification['idNotificacion'] ??= notification['idnotificacion'];
-            notification['idSolicitud'] ??= notification['idsolicitud'];
-            notification['requiereAccion'] ??= notification['requiere_accion'];
-            notification['createdAt'] ??= notification['created_at'];
-            return notification;
-          }).toList();
+          _notifications = notifications;
         });
+        if (stockAlertToShow != null) {
+          _showStockAlert(stockAlertToShow!);
+        }
       }
     } catch (_) {}
+  }
+
+  void _showStockAlert(Map<String, dynamic> notification) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+        backgroundColor: const Color(0xFFFFF8F8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.red.shade200),
+        ),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        content: Row(
+          children: [
+            const Icon(Icons.notifications_active, color: Color(0xFFB63B3B)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    notification['titulo']?.toString() ?? 'Stock crítico',
+                    style: const TextStyle(
+                      color: IngenixTheme.texto,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    notification['mensaje']?.toString() ?? '',
+                    style: const TextStyle(
+                      color: IngenixTheme.textoSec,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _markNotificationRead(Map<String, dynamic> notification) async {
@@ -114,7 +175,9 @@ class _NavBarWidgetState extends State<NavBarWidget> {
     final title = notification['titulo']?.toString().toLowerCase() ?? '';
     Navigator.pop(context);
     _markNotificationRead(notification);
-    if (title.contains('almacen')) {
+    if (notification['tipo']?.toString() == 'stock') {
+      context.go('/productos');
+    } else if (title.contains('almacen')) {
       context.go(
         user?.esAdmin == true
             ? '/solicitudes-almacenadas'
@@ -199,22 +262,44 @@ class _NavBarWidgetState extends State<NavBarWidget> {
                         itemCount: _filteredNotifications.length,
                         itemBuilder: (context, index) {
                           final notification = _filteredNotifications[index];
+                          final urgente =
+                              notification['prioridad']?.toString() ==
+                              'urgente';
                           return ListTile(
                             leading: Icon(
-                              notification['leida'] == true
+                              urgente
+                                  ? Icons.error_outline
+                                  : notification['leida'] == true
                                   ? Icons.notifications_none
                                   : Icons.notifications_active,
                               color: notification['leida'] == true
                                   ? IngenixTheme.textoSec
+                                  : urgente
+                                  ? const Color(0xFFB63B3B)
                                   : IngenixTheme.principal,
                             ),
                             title: Text(
                               notification['titulo']?.toString() ??
                                   'Notificación',
+                              style: TextStyle(
+                                fontWeight: urgente
+                                    ? FontWeight.w700
+                                    : FontWeight.normal,
+                              ),
                             ),
                             subtitle: Text(
                               notification['mensaje']?.toString() ?? '',
                             ),
+                            trailing: urgente
+                                ? const Text(
+                                    'URGENTE',
+                                    style: TextStyle(
+                                      color: Color(0xFFB63B3B),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  )
+                                : null,
                             onTap: () => _openNotification(notification),
                           );
                         },

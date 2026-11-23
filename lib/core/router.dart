@@ -21,6 +21,7 @@ import '../screens/productos_screen.dart';
 import '../screens/recuperar_password_screen.dart';
 import '../screens/restablecer_password_screen.dart';
 import '../screens/gestion_screen.dart';
+import '../screens/terminos_retiro_screen.dart';
 
 GoRouter appRouter(BuildContext context) {
   final auth = Provider.of<AuthService>(context, listen: false);
@@ -34,6 +35,7 @@ GoRouter appRouter(BuildContext context) {
           [
             '/login',
             '/register',
+            '/terminos',
             '/recuperar-password',
           ].contains(state.matchedLocation) ||
           state.matchedLocation.startsWith('/restablecer-password/');
@@ -63,6 +65,10 @@ GoRouter appRouter(BuildContext context) {
       GoRoute(path: '/', builder: (c, s) => const HomeInvitadoScreen()),
       GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
       GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
+      GoRoute(
+        path: '/terminos',
+        builder: (c, s) => const TerminosRetiroScreen(),
+      ),
       GoRoute(
         path: '/recuperar-password',
         builder: (c, s) => const RecuperarPasswordScreen(),

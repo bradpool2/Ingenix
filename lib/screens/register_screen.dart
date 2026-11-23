@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
-import '../../core/theme.dart';
-import '../../core/constants.dart';
+import '../core/theme.dart';
+import '../core/constants.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,43 +13,60 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _nombreCtrl    = TextEditingController();
-  final _correoCtrl    = TextEditingController();
+  final _nombreCtrl = TextEditingController();
+  final _correoCtrl = TextEditingController();
   final _documentoCtrl = TextEditingController();
-  final _telefonoCtrl  = TextEditingController();
+  final _telefonoCtrl = TextEditingController();
   final _direccionCtrl = TextEditingController();
-  final _passCtrl      = TextEditingController();
-  final _confirmCtrl   = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
 
   bool _cargando = false;
-  bool _verPass  = false;
+  bool _verPass = false;
+  bool _aceptaTerminos = false;
   String? _error;
 
   @override
   void dispose() {
-    _nombreCtrl.dispose();    _correoCtrl.dispose();
-    _documentoCtrl.dispose(); _telefonoCtrl.dispose();
-    _direccionCtrl.dispose(); _passCtrl.dispose();
+    _nombreCtrl.dispose();
+    _correoCtrl.dispose();
+    _documentoCtrl.dispose();
+    _telefonoCtrl.dispose();
+    _direccionCtrl.dispose();
+    _passCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _registrar() async {
+    if (!_aceptaTerminos) {
+      setState(() => _error = 'Debes aceptar los términos y condiciones');
+      return;
+    }
+
     if (_passCtrl.text != _confirmCtrl.text) {
       setState(() => _error = 'Las contraseñas no coinciden');
       return;
     }
 
-    setState(() { _cargando = true; _error = null; });
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
 
     try {
       // Validar si ya existe el correo
       final checkRes = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/usuario?correo=${_correoCtrl.text.trim()}'),
+        Uri.parse(
+          '${AppConstants.baseUrl}/usuario?correo=${_correoCtrl.text.trim()}',
+        ),
       );
       final checkData = jsonDecode(checkRes.body);
       if (checkData is List && checkData.isNotEmpty) {
-        setState(() { _error = 'El correo ya está registrado'; _cargando = false; });
+        setState(() {
+          _error = 'El correo ya está registrado';
+          _cargando = false;
+        });
         return;
       }
 
@@ -58,13 +75,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Uri.parse('${AppConstants.baseUrl}/usuarios/registro'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'nombre':    _nombreCtrl.text.trim(),
-          'correo':    _correoCtrl.text.trim(),
+          'nombre': _nombreCtrl.text.trim(),
+          'correo': _correoCtrl.text.trim(),
           'documento': _documentoCtrl.text.trim(),
-          'telefono':  _telefonoCtrl.text.trim(),
+          'telefono': _telefonoCtrl.text.trim(),
           'direccion': _direccionCtrl.text.trim(),
-          'pass':      _passCtrl.text,
+          'pass': _passCtrl.text,
           'rol_idRol': 3,
+          'aceptaTerminos': _aceptaTerminos,
         }),
       );
 
@@ -72,7 +90,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (res.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Registro exitoso! Inicia sesión'), backgroundColor: IngenixTheme.principal),
+          const SnackBar(
+            content: Text('¡Registro exitoso! Inicia sesión'),
+            backgroundColor: IngenixTheme.principal,
+          ),
         );
         context.go('/login');
       } else {
@@ -86,7 +107,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  Widget _campo(String label, TextEditingController ctrl, {
+  Widget _campo(
+    String label,
+    TextEditingController ctrl, {
     TextInputType tipo = TextInputType.text,
     bool obscure = false,
     String? hint,
@@ -96,7 +119,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: IngenixTheme.textoSec)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: IngenixTheme.textoSec),
+        ),
         const SizedBox(height: 6),
         TextField(
           controller: ctrl,
@@ -130,20 +156,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: IngenixTheme.principal.withOpacity(0.35)),
-                  boxShadow: [BoxShadow(color: const Color(0xFF292814).withOpacity(0.08), blurRadius: 35, offset: const Offset(0, 15))],
+                  border: Border.all(
+                    color: IngenixTheme.principal.withOpacity(0.35),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF292814).withOpacity(0.08),
+                      blurRadius: 35,
+                      offset: const Offset(0, 15),
+                    ),
+                  ],
                 ),
                 padding: const EdgeInsets.all(30),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Tabs
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        GestureDetector(onTap: () => context.go('/login'), child: const _Tab(label: 'Iniciar sesión', activo: false)),
+                        GestureDetector(
+                          onTap: () => context.go('/login'),
+                          child: const _Tab(
+                            label: 'Iniciar sesión',
+                            activo: false,
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Container(width: 1, height: 24, color: IngenixTheme.secundario),
+                        Container(
+                          width: 1,
+                          height: 24,
+                          color: IngenixTheme.secundario,
+                        ),
                         const SizedBox(width: 8),
                         const _Tab(label: 'Registrarse', activo: true),
                       ],
@@ -153,29 +198,117 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (_error != null) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: const Color(0xFFD32F2F).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                        child: Text(_error!, style: const TextStyle(color: Color(0xFFD32F2F), fontSize: 13), textAlign: TextAlign.center),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD32F2F).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(
+                            color: Color(0xFFD32F2F),
+                            fontSize: 13,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                       const SizedBox(height: 16),
                     ],
 
-                    _campo('Nombre completo', _nombreCtrl, hint: 'Ej: Juan Pérez'),
-                    _campo('Correo electrónico', _correoCtrl, tipo: TextInputType.emailAddress, hint: 'correo@ejemplo.com'),
-                    _campo('Documento', _documentoCtrl, tipo: TextInputType.number, hint: 'Número de documento'),
-                    _campo('Teléfono', _telefonoCtrl, tipo: TextInputType.phone, hint: '3001234567'),
+                    _campo(
+                      'Nombre completo',
+                      _nombreCtrl,
+                      hint: 'Ej: Juan Pérez',
+                    ),
+                    _campo(
+                      'Correo electrónico',
+                      _correoCtrl,
+                      tipo: TextInputType.emailAddress,
+                      hint: 'correo@ejemplo.com',
+                    ),
+                    _campo(
+                      'Documento',
+                      _documentoCtrl,
+                      tipo: TextInputType.number,
+                      hint: 'Número de documento',
+                    ),
+                    _campo(
+                      'Teléfono',
+                      _telefonoCtrl,
+                      tipo: TextInputType.phone,
+                      hint: '3001234567',
+                    ),
                     _campo('Dirección', _direccionCtrl, hint: 'Calle 1 # 2-3'),
-                    _campo('Contraseña', _passCtrl, obscure: !_verPass, hint: '••••••••',
+                    _campo(
+                      'Contraseña',
+                      _passCtrl,
+                      obscure: !_verPass,
+                      hint: '••••••••',
                       sufijo: IconButton(
-                        icon: Icon(_verPass ? Icons.visibility_off : Icons.visibility),
+                        icon: Icon(
+                          _verPass ? Icons.visibility_off : Icons.visibility,
+                        ),
                         onPressed: () => setState(() => _verPass = !_verPass),
                       ),
                     ),
-                    _campo('Confirmar contraseña', _confirmCtrl, obscure: true, hint: '••••••••', action: TextInputAction.done),
+                    _campo(
+                      'Confirmar contraseña',
+                      _confirmCtrl,
+                      obscure: true,
+                      hint: '••••••••',
+                      action: TextInputAction.done,
+                    ),
 
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Checkbox(
+                          value: _aceptaTerminos,
+                          onChanged: _cargando
+                              ? null
+                              : (value) => setState(
+                                  () => _aceptaTerminos = value ?? false,
+                                ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                const Text('Acepto los '),
+                                TextButton(
+                                  onPressed: () => context.push('/terminos'),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'términos y condiciones',
+                                    style: TextStyle(
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: _cargando ? null : _registrar,
                       child: _cargando
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
                           : const Text('Crear cuenta'),
                     ),
                   ],
@@ -195,8 +328,12 @@ class _Tab extends StatelessWidget {
   const _Tab({required this.label, required this.activo});
 
   @override
-  Widget build(BuildContext context) => Text(label, style: TextStyle(
-    fontSize: 15, fontWeight: activo ? FontWeight.w600 : FontWeight.normal,
-    color: activo ? IngenixTheme.texto : IngenixTheme.textoSec,
-  ));
+  Widget build(BuildContext context) => Text(
+    label,
+    style: TextStyle(
+      fontSize: 15,
+      fontWeight: activo ? FontWeight.w600 : FontWeight.normal,
+      color: activo ? IngenixTheme.texto : IngenixTheme.textoSec,
+    ),
+  );
 }

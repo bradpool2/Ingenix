@@ -9,6 +9,7 @@ import '../core/theme.dart';
 import '../services/auth_service.dart';
 import '../widgets/navbar_widget.dart';
 import '../widgets/panel_sidebar.dart';
+import '../widgets/aviso_retiro_widget.dart';
 import 'solicitud_cliente_mantenimiento.dart';
 import 'solicitud_cliente_venta.dart';
 
@@ -247,7 +248,7 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
             ? _imagenesBytes[index]
             : await imagen.readAsBytes();
         final nombreArchivo = imagen.name.isNotEmpty
-          ? imagen.name
+            ? imagen.name
             : 'imagen_${DateTime.now().millisecondsSinceEpoch}_$index.jpg';
         final extension = nombreArchivo.split('.').last.toLowerCase();
         final tipoImagen = switch (extension) {
@@ -307,8 +308,8 @@ class _SolicitudClienteScreenState extends State<SolicitudClienteScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthService>();
-    final esPersonal = auth.usuario?.esAdmin == true ||
-        auth.usuario?.esTecnico == true;
+    final esPersonal =
+        auth.usuario?.esAdmin == true || auth.usuario?.esTecnico == true;
 
     return Theme(
       data: Theme.of(context).copyWith(
@@ -425,10 +426,10 @@ class _TypeSelector extends StatelessWidget {
         ];
 
         return stacked
-          ? Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [cards[0], const SizedBox(height: 14), cards[1]],
-            )
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [cards[0], const SizedBox(height: 14), cards[1]],
+              )
             : Row(
                 children: [
                   Expanded(child: cards[0]),
@@ -560,6 +561,8 @@ class _RecentRequestsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const AvisoRetiroWidget(),
+        const SizedBox(height: 16),
         const Text(
           'Mis solicitudes',
           style: TextStyle(
@@ -592,57 +595,59 @@ class _RecentRequestsSection extends StatelessWidget {
                       style: TextStyle(color: IngenixTheme.textoSec),
                     )
                   : mobile
-                      ? Column(
-                          children: [
-                            for (var index = 0; index < items.length; index++)
-                              _RecentRequestCard(
-                                item: items[index],
-                                showDivider: index < items.length - 1,
-                              ),
-                          ],
-                        )
-                      : SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            columnSpacing: 24,
-                            headingTextStyle: const TextStyle(
-                              color: IngenixTheme.texto,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            dataTextStyle: const TextStyle(
-                              color: IngenixTheme.texto,
-                            ),
-                            columns: const [
-                              DataColumn(label: Text('Orden')),
-                              DataColumn(label: Text('Artículo / detalle')),
-                              DataColumn(label: Text('Estado')),
-                              DataColumn(label: Text('Fecha')),
-                              DataColumn(label: Text('Total')),
-                            ],
-                            rows: items.map((item) {
-                              final estado =
-                                  item['estado']?.toString() ?? 'Pendiente';
-                              final descripcion = (item['servicios'] ?? '')
-                                  .toString();
-                              final fecha = (item['fecha_registro'] ?? '')
-                                  .toString();
-                              final total = item['total_estimado'] ?? 0;
-                              return DataRow(
-                                cells: [
-                                  DataCell(Text(
-                                    '#${item['numeroOrden'] ?? item['idSolicitud'] ?? '—'}',
-                                  )),
-                                  DataCell(Text(
-                                    descripcion.isEmpty ? '—' : descripcion,
-                                  )),
-                                  DataCell(Text(estado)),
-                                  DataCell(Text(fecha.isEmpty ? '—' : fecha)),
-                                  DataCell(Text('$total COP')),
-                                ],
-                              );
-                            }).toList(),
+                  ? Column(
+                      children: [
+                        for (var index = 0; index < items.length; index++)
+                          _RecentRequestCard(
+                            item: items[index],
+                            showDivider: index < items.length - 1,
                           ),
+                      ],
+                    )
+                  : SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columnSpacing: 24,
+                        headingTextStyle: const TextStyle(
+                          color: IngenixTheme.texto,
+                          fontWeight: FontWeight.w700,
                         ),
+                        dataTextStyle: const TextStyle(
+                          color: IngenixTheme.texto,
+                        ),
+                        columns: const [
+                          DataColumn(label: Text('Orden')),
+                          DataColumn(label: Text('Artículo / detalle')),
+                          DataColumn(label: Text('Estado')),
+                          DataColumn(label: Text('Fecha')),
+                          DataColumn(label: Text('Total')),
+                        ],
+                        rows: items.map((item) {
+                          final estado =
+                              item['estado']?.toString() ?? 'Pendiente';
+                          final descripcion = (item['servicios'] ?? '')
+                              .toString();
+                          final fecha = (item['fecha_registro'] ?? '')
+                              .toString();
+                          final total = item['total_estimado'] ?? 0;
+                          return DataRow(
+                            cells: [
+                              DataCell(
+                                Text(
+                                  '#${item['numeroOrden'] ?? item['idSolicitud'] ?? '—'}',
+                                ),
+                              ),
+                              DataCell(
+                                Text(descripcion.isEmpty ? '—' : descripcion),
+                              ),
+                              DataCell(Text(estado)),
+                              DataCell(Text(fecha.isEmpty ? '—' : fecha)),
+                              DataCell(Text('$total COP')),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
             );
           },
         ),
@@ -675,14 +680,20 @@ class _RecentRequestCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('#$orden', style: const TextStyle(
-                    color: IngenixTheme.texto,
-                    fontWeight: FontWeight.w700,
-                  )),
-                  Text(estado, style: const TextStyle(
-                    color: IngenixTheme.principal,
-                    fontWeight: FontWeight.w700,
-                  )),
+                  Text(
+                    '#$orden',
+                    style: const TextStyle(
+                      color: IngenixTheme.texto,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    estado,
+                    style: const TextStyle(
+                      color: IngenixTheme.principal,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
