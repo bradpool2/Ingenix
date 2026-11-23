@@ -122,7 +122,15 @@ const openapi = {
       post: {
         tags: ['Usuarios'],
         summary: 'Registrar usuario público',
-        requestBody: jsonBody(requestObject({ ...userProperties, pass: { type: 'string', format: 'password' } }, ['nombre', 'correo', 'documento', 'pass'])),
+        requestBody: jsonBody(requestObject({
+          ...userProperties,
+          pass: { type: 'string', format: 'password' },
+          aceptaTerminos: {
+            type: 'boolean',
+            enum: [true],
+            description: 'Aceptación expresa del plazo de recogida de 30 días.',
+          },
+        }, ['nombre', 'correo', 'documento', 'pass', 'aceptaTerminos'])),
         responses: { 201: jsonResponse(), ...errorResponses },
       },
     },
@@ -155,6 +163,17 @@ const openapi = {
         responses: { 200: jsonResponse() },
       }),
       delete: auth({ tags: ['Usuarios'], summary: 'Eliminar usuario', responses: { 200: jsonResponse() } }),
+    },
+    '/perfil/cambiar-password': {
+      put: auth({
+        tags: ['Usuarios'],
+        summary: 'Cambiar la contraseña del usuario autenticado',
+        requestBody: jsonBody(requestObject({
+          passwordActual: { type: 'string', format: 'password' },
+          passwordNueva: { type: 'string', format: 'password', minLength: 8 },
+        }, ['passwordActual', 'passwordNueva'])),
+        responses: { 200: jsonResponse('Contraseña actualizada'), ...errorResponses },
+      }),
     },
     '/usuarios/tecnicos': {
       get: auth({ tags: ['Usuarios'], summary: 'Listar técnicos', responses: { 200: jsonResponse() } }),

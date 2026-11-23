@@ -18,6 +18,55 @@ min-height:100vh;
 width:100%;
 }
 
+.terminos-registro{
+  margin: 4px 0 16px;
+  padding: 14px;
+  border: 1px solid rgba(153,193,187,.45);
+  border-radius: 8px;
+  background: rgba(153,193,187,.12);
+  color: var(--color-texto);
+  font-size: 13px;
+}
+
+.terminos-registro p{
+  margin: 7px 0 12px;
+  line-height: 1.5;
+}
+
+.aceptacion-terminos{
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.aceptacion-terminos input[type="checkbox"]{
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  padding: 0;
+  accent-color: var(--color-principal);
+}
+
+.error-registro{
+  color: #a12622;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.aviso-plazo-retiro{
+  max-width: 980px;
+  margin: 0 auto 22px;
+  padding: 12px 16px;
+  border-left: 3px solid rgba(91,143,134,.55);
+  border-radius: 5px;
+  background: rgba(153,193,187,.16);
+  color: #59615f;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .contenedor-padre{
 display:flex;
 justify-content:center;
@@ -457,6 +506,58 @@ margin-top:25px;
   font-size: 14px;
 }
 
+.perfil-password {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(153,193,187,.2);
+}
+
+.perfil-password h3 {
+  margin: 0 0 6px;
+  color: var(--color-texto);
+  font-size: 15px;
+}
+
+.perfil-password > p {
+  margin: 0 0 16px;
+  color: var(--color-texto-secundario);
+  font-size: 13px;
+}
+
+.perfil-password-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.perfil-password-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-texto-secundario);
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.perfil-password-grid input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--color-secundario);
+  border-radius: 8px;
+  color: var(--color-texto);
+}
+
+.perfil-password-error,
+.perfil-password-exito {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.perfil-password-error { color: #a12622; }
+.perfil-password-exito { color: #287447; }
+
 .btn-cancelar-perfil {
   padding: 10px 22px;
   font-size: 14px;
@@ -474,6 +575,8 @@ margin-top:25px;
   .tarjeta-perfil { flex-direction: column; }
   .perfil-lateral { width: 100%; border-right: none; border-bottom: 1px solid rgba(153,193,187,.25); }
   .perfil-grid { grid-template-columns: 1fr; }
+  .perfil-password-grid { grid-template-columns: 1fr; }
+  .perfil-contenido { padding: 24px 18px; }
 }
 
 /* ---------------- CARRITO ICONO ---------------- */

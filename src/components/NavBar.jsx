@@ -2,6 +2,7 @@
   import { Link, useNavigate } from 'react-router-dom';
   import { useEffect, useState } from 'react';
   import { FaBell } from 'react-icons/fa';
+  import { createPortal } from 'react-dom';
   import '../CSS/NavBar.css';
   import Carrito_plegable from "../Paginas/Carrito_plegable";
   import { authFetch } from './api.js';
@@ -36,7 +37,20 @@
         const noLeidasNuevas = nuevas.filter((notificacion) => (
           !notificacion.leida && !notificacionesConocidas.current.has(notificacion.idnotificacion)
         ));
-        if (inicializado.current && noLeidasNuevas.length > 0) {
+        const alertaStockPendiente = nuevas.find((notificacion) => (
+          notificacion.tipo === 'sistema'
+          && notificacion.prioridad === 'urgente'
+          && notificacion.titulo?.startsWith('Stock crítico:')
+          && !notificacion.leida
+          && !sessionStorage.getItem(`alerta-stock-mostrada-${notificacion.idnotificacion}`)
+        ));
+        if (alertaStockPendiente) {
+          sessionStorage.setItem(`alerta-stock-mostrada-${alertaStockPendiente.idnotificacion}`, 'true');
+          window.setTimeout(() => {
+            setToast(alertaStockPendiente);
+            window.setTimeout(() => setToast(null), 6000);
+          }, 0);
+        } else if (inicializado.current && noLeidasNuevas.length > 0) {
           setToast(noLeidasNuevas[0]);
           window.setTimeout(() => setToast(null), 6000);
         }
@@ -254,17 +268,21 @@
   )}
 
   {toast && (
-    <button
-      className="notificacion-toast"
-      onClick={() => {
-        setToast(null);
-        setMostrarNotificaciones(true);
-        abrirNotificacion(toast);
-      }}
-    >
-      <FaBell />
-      <span><strong>{toast.titulo}</strong><small>{toast.mensaje}</small></span>
-    </button>
+    createPortal(
+      <button
+        className={`notificacion-toast ${toast.prioridad === 'urgente' ? 'urgente' : ''}`}
+        aria-live={toast.prioridad === 'urgente' ? 'assertive' : 'polite'}
+        onClick={() => {
+          setToast(null);
+          setMostrarNotificaciones(true);
+          abrirNotificacion(toast);
+        }}
+      >
+        <FaBell />
+        <span><strong>{toast.titulo}</strong><small>{toast.mensaje}</small></span>
+      </button>,
+      document.body
+    )
   )}
 
   {user && (

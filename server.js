@@ -9,6 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto'
+import process from 'node:process';
 import swaggerUi from 'swagger-ui-express';
 import conexion from './Backend/config/db.js';
 import { verificarToken, soloAdmin, soloTecnico } from './Backend/Middleware/Auth.js';
@@ -50,6 +51,45 @@ const transporter = nodemailer.createTransport({
         pass: process.env.EMAIL_PASS
     }
 });
+
+const VERSION_TERMINOS = '1.0';
+
+const prepararReglaRetiro = async () => {
+    await conexion.query(`
+        ALTER TABLE usuario
+        ADD COLUMN IF NOT EXISTS terminos_aceptados_en TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS version_terminos VARCHAR(30)
+    `);
+    await conexion.query(`
+        ALTER TABLE solicitud
+        ADD COLUMN IF NOT EXISTS fecha_listo_retiro TIMESTAMPTZ
+    `);
+    await conexion.query(`
+        UPDATE solicitud
+        SET fecha_listo_retiro = date_trunc('second', CURRENT_TIMESTAMP)
+        WHERE estado = 'Aprobado' AND fecha_listo_retiro IS NULL
+    `);
+    await conexion.query(`
+        CREATE TABLE IF NOT EXISTS solicitud_recordatorio (
+            solicitud_id INTEGER NOT NULL REFERENCES solicitud(idsolicitud) ON DELETE CASCADE,
+            fecha_listo_retiro TIMESTAMPTZ NOT NULL,
+            dia INTEGER NOT NULL CHECK (dia IN (1, 15, 30)),
+            correo_enviado BOOLEAN NOT NULL DEFAULT FALSE,
+            notificacion_enviada BOOLEAN NOT NULL DEFAULT FALSE,
+            PRIMARY KEY (solicitud_id, fecha_listo_retiro, dia)
+        )
+    `);
+};
+
+const prepararAlertasStock = async () => {
+    await conexion.query(`
+        CREATE TABLE IF NOT EXISTS producto_stock_alerta (
+            producto_id INTEGER PRIMARY KEY REFERENCES producto(idproducto) ON DELETE CASCADE,
+            alerta_activa BOOLEAN NOT NULL DEFAULT TRUE,
+            notificacion_enviada BOOLEAN NOT NULL DEFAULT FALSE
+        )
+    `);
+};
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -355,10 +395,13 @@ app.post('/restablecer-password', async (req, res) => {
 
 });
 app.post('/usuarios/registro', async (req, res) => {
-    const { nombre, correo, documento, direccion, telefono, pass, rol_idRol } = req.body;
+    const { nombre, correo, documento, direccion, telefono, pass, rol_idRol, aceptaTerminos } = req.body;
 
     if (!nombre || !correo || !documento || !pass) {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
+    }
+    if (aceptaTerminos !== true) {
+        return res.status(400).json({ message: 'Debes aceptar los términos sobre el plazo de recogida para registrarte.' });
     }
 
     try {
@@ -366,8 +409,11 @@ app.post('/usuarios/registro', async (req, res) => {
         const passEncriptada = await bcrypt.hash(pass, saltos);
 
         conexion.query(
-            'INSERT INTO usuario (nombre, correo, documento, direccion, telefono, pass, rol_idRol) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [nombre, correo, documento, direccion, telefono, passEncriptada, rol_idRol || 4],
+            `INSERT INTO usuario
+                (nombre, correo, documento, direccion, telefono, pass, rol_idRol,
+                 terminos_aceptados_en, version_terminos)
+             VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+            [nombre, correo, documento, direccion, telefono, passEncriptada, rol_idRol || 4, VERSION_TERMINOS],
             (err, results) => {
                 if (err) {
                     console.error('❌ Error POST /usuarios/registro:', err);
@@ -497,6 +543,56 @@ app.put('/usuarios/:id', verificarToken, (req, res) => {
     );
 });
 
+app.put('/perfil/cambiar-password', verificarToken, async (req, res) => {
+    const idUsuario = Number(req.usuario?.id);
+    const { passwordActual, passwordNueva } = req.body;
+
+    if (!Number.isSafeInteger(idUsuario) || idUsuario < 1) {
+        return res.status(401).json({ message: 'La sesión no contiene un usuario válido.' });
+    }
+    if (typeof passwordActual !== 'string' || typeof passwordNueva !== 'string'
+        || !passwordActual || !passwordNueva) {
+        return res.status(400).json({ message: 'Indica la contraseña actual y la nueva contraseña.' });
+    }
+    if (passwordNueva.length < 8) {
+        return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+    }
+
+    try {
+        const usuarios = await conexion.query(
+            'SELECT pass FROM usuario WHERE idusuario = ?',
+            [idUsuario]
+        );
+        if (usuarios.length === 0) {
+            return res.status(404).json({ message: 'No se encontró el usuario de la sesión.' });
+        }
+
+        const coincide = await bcrypt.compare(passwordActual, usuarios[0].pass);
+        if (!coincide) {
+            return res.status(400).json({ message: 'La contraseña actual no es correcta.' });
+        }
+
+        const esLaMisma = await bcrypt.compare(passwordNueva, usuarios[0].pass);
+        if (esLaMisma) {
+            return res.status(400).json({ message: 'La nueva contraseña debe ser diferente a la actual.' });
+        }
+
+        const hash = await bcrypt.hash(passwordNueva, 10);
+        const resultado = await conexion.query(
+            'UPDATE usuario SET pass = ? WHERE idusuario = ?',
+            [hash, idUsuario]
+        );
+        if (resultado.affectedRows === 0) {
+            return res.status(404).json({ message: 'No se pudo encontrar el usuario para actualizar la contraseña.' });
+        }
+
+        return res.json({ message: 'Contraseña actualizada correctamente.' });
+    } catch (error) {
+        console.error('❌ No se pudo cambiar la contraseña del perfil:', error.message);
+        return res.status(500).json({ message: 'No se pudo actualizar la contraseña.' });
+    }
+});
+
 app.get('/usuarios/tecnicos', verificarToken, soloAdmin, (req, res) => {
     conexion.query(
         `SELECT u.idusuario AS "idUsuario", u.nombre 
@@ -569,6 +665,7 @@ app.post('/productos', verificarToken, soloAdmin, (req, res) => {
         [nombre, descripcion, precio, stock || 0],
         (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
+            revisarAlertasStock();
             res.status(201).json({ message: 'Producto creado', idProducto: results.insertId });
         }
     );
@@ -582,6 +679,7 @@ app.put('/productos/:id', verificarToken, soloAdmin, (req, res) => {
         [nombre, descripcion, precio, stock, id],
         (err) => {
             if (err) return res.status(500).json({ error: err.message });
+            revisarAlertasStock();
             res.json({ message: 'Producto actualizado con éxito' });
         }
     );
@@ -993,10 +1091,13 @@ app.post('/venta', verificarToken, (req, res) => {
 
         return { idVenta, referencia, total: totalCalculado };
     })
-        .then((resultado) => res.status(201).json({
-            message: 'Venta y pago registrados correctamente',
-            ...resultado,
-        }))
+        .then((resultado) => {
+            revisarAlertasStock();
+            res.status(201).json({
+                message: 'Venta y pago registrados correctamente',
+                ...resultado,
+            });
+        })
         .catch((error) => {
             if (error.status) {
                 return res.status(error.status).json({ message: error.message });
@@ -1027,12 +1128,162 @@ app.get('/ventas/:idUsuario', verificarToken, (req, res) => {
     );
 });
 
+const ejecutarRecordatoriosRetiro = async () => {
+    try {
+        const solicitudes = await conexion.query(`
+            SELECT
+                s.idsolicitud AS "idSolicitud",
+                s.numeroorden AS "numeroOrden",
+                s.fecha_listo_retiro AS "fechaListoRetiro",
+                c.usuario_idusuario AS "usuarioId",
+                u.correo,
+                (timezone('America/Bogota', CURRENT_TIMESTAMP)::date
+                    - (s.fecha_listo_retiro AT TIME ZONE 'America/Bogota')::date)::integer AS "diasDesdeListo"
+            FROM solicitud s
+            INNER JOIN cliente c ON c.idcliente = s.cliente_idcliente
+            INNER JOIN usuario u ON u.idusuario = c.usuario_idusuario
+            WHERE s.estado IN ('Aprobado', 'Almacenado')
+              AND s.fecha_listo_retiro IS NOT NULL
+              AND timezone('America/Bogota', CURRENT_TIMESTAMP)::date
+                  > (s.fecha_listo_retiro AT TIME ZONE 'America/Bogota')::date
+        `);
+
+        for (const solicitud of solicitudes) {
+            const diasDesdeListo = Number(solicitud.diasDesdeListo);
+            for (const dia of [1, 15, 30]) {
+                if (diasDesdeListo < dia) continue;
+
+                await conexion.query(
+                    `INSERT INTO solicitud_recordatorio (solicitud_id, fecha_listo_retiro, dia)
+                     VALUES (?, ?, ?)
+                     ON CONFLICT (solicitud_id, fecha_listo_retiro, dia) DO NOTHING`,
+                    [solicitud.idSolicitud, solicitud.fechaListoRetiro, dia]
+                );
+                const [recordatorio] = await conexion.query(
+                    `SELECT correo_enviado AS "correoEnviado",
+                            notificacion_enviada AS "notificacionEnviada"
+                     FROM solicitud_recordatorio
+                     WHERE solicitud_id = ? AND fecha_listo_retiro = ? AND dia = ?`,
+                    [solicitud.idSolicitud, solicitud.fechaListoRetiro, dia]
+                );
+                const orden = solicitud.numeroOrden || `#${solicitud.idSolicitud}`;
+                const mensaje = `El artículo de la solicitud ${orden} está listo. Tienes 30 días desde que fue aprobado para recogerlo o solicitar un envío. Este es tu recordatorio del día ${dia}.`;
+
+                if (!recordatorio.notificacionEnviada) {
+                    try {
+                        await crearNotificacion({
+                            titulo: `Recordatorio de recogida: día ${dia}`,
+                            mensaje,
+                            tipo: 'sistema',
+                            rolDestino: 'cliente',
+                            usuarioIds: [solicitud.usuarioId],
+                            idSolicitud: solicitud.idSolicitud,
+                        });
+                        await conexion.query(
+                            `UPDATE solicitud_recordatorio SET notificacion_enviada = TRUE
+                             WHERE solicitud_id = ? AND fecha_listo_retiro = ? AND dia = ?`,
+                            [solicitud.idSolicitud, solicitud.fechaListoRetiro, dia]
+                        );
+                    } catch (error) {
+                        console.error(`❌ No se pudo crear el recordatorio interno de la solicitud ${orden}:`, error.message);
+                    }
+                }
+
+                if (!recordatorio.correoEnviado) {
+                    try {
+                        await transporter.sendMail({
+                            from: process.env.EMAIL_USER,
+                            to: solicitud.correo,
+                            subject: `Recordatorio de recogida de tu solicitud ${orden}`,
+                            text: `${mensaje}\n\nPor favor, comunícate con Ingenix para coordinar el envío o recoge tu artículo dentro del plazo.`,
+                            html: `<p>${mensaje}</p><p>Comunícate con Ingenix para coordinar el envío o recoge tu artículo dentro del plazo.</p>`,
+                        });
+                        await conexion.query(
+                            `UPDATE solicitud_recordatorio SET correo_enviado = TRUE
+                             WHERE solicitud_id = ? AND fecha_listo_retiro = ? AND dia = ?`,
+                            [solicitud.idSolicitud, solicitud.fechaListoRetiro, dia]
+                        );
+                    } catch (error) {
+                        console.error(`❌ No se pudo enviar el recordatorio por correo de la solicitud ${orden}:`, error.message);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error al procesar recordatorios de recogida:', error.message);
+    }
+};
+
+let revisandoStockBajo = false;
+
+const revisarAlertasStock = async () => {
+    if (revisandoStockBajo) return;
+    revisandoStockBajo = true;
+
+    try {
+        await conexion.query(`
+            UPDATE producto_stock_alerta alerta
+            SET alerta_activa = FALSE, notificacion_enviada = FALSE
+            FROM producto p
+            WHERE p.idproducto = alerta.producto_id
+              AND (p.stock IS NULL OR p.stock > 2)
+              AND alerta.alerta_activa = TRUE
+        `);
+        await conexion.query(`
+            INSERT INTO producto_stock_alerta (producto_id, alerta_activa, notificacion_enviada)
+            SELECT idproducto, TRUE, FALSE
+            FROM producto
+            WHERE stock <= 2
+            ON CONFLICT (producto_id) DO UPDATE
+            SET alerta_activa = TRUE,
+                notificacion_enviada = CASE
+                    WHEN producto_stock_alerta.alerta_activa
+                        THEN producto_stock_alerta.notificacion_enviada
+                    ELSE FALSE
+                END
+        `);
+        const productosConStockBajo = await conexion.query(`
+            SELECT p.idproducto AS "idProducto", p.nombre, p.stock
+            FROM producto_stock_alerta alerta
+            INNER JOIN producto p ON p.idproducto = alerta.producto_id
+            WHERE alerta.alerta_activa = TRUE
+              AND alerta.notificacion_enviada = FALSE
+              AND p.stock <= 2
+        `);
+
+        for (const producto of productosConStockBajo) {
+            try {
+                await crearNotificacion({
+                    titulo: `Stock crítico: ${producto.nombre}`,
+                    mensaje: `Quedan ${producto.stock} unidades de ${producto.nombre}. Reponer este producto con urgencia.`,
+                    tipo: 'sistema',
+                    rolDestino: 'admin',
+                    prioridad: 'urgente',
+                });
+                await conexion.query(
+                    `UPDATE producto_stock_alerta
+                     SET notificacion_enviada = TRUE
+                     WHERE producto_id = ? AND alerta_activa = TRUE`,
+                    [producto.idProducto]
+                );
+            } catch (error) {
+                console.error(`❌ No se pudo enviar la alerta de stock para ${producto.nombre}:`, error.message);
+            }
+        }
+    } catch (error) {
+        console.error('❌ No se pudieron revisar las alertas de stock:', error.message);
+    } finally {
+        revisandoStockBajo = false;
+    }
+};
+
 const ejecutarAlmacenadoProgramado = () => {
     conexion.query(
         `UPDATE solicitud
          SET estado = 'Almacenado'
          WHERE estado = 'Aprobado'
-           AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'
+           AND fecha_listo_retiro IS NOT NULL
+           AND fecha_listo_retiro < CURRENT_TIMESTAMP - INTERVAL '30 days'
          RETURNING idsolicitud, numeroorden, cliente_idcliente`,
         async (error, solicitudesArchivadas) => {
             if (error) {
@@ -1091,8 +1342,19 @@ const ejecutarAlmacenadoProgramado = () => {
     );
 };
 
-app.listen(PUERTO, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
-    ejecutarAlmacenadoProgramado();
-    setInterval(ejecutarAlmacenadoProgramado, 24 * 60 * 60 * 1000);
-});
+Promise.all([prepararReglaRetiro(), prepararAlertasStock()])
+    .then(() => {
+        app.listen(PUERTO, () => {
+            console.log(`🚀 Servidor corriendo en http://localhost:${PUERTO}`);
+            ejecutarAlmacenadoProgramado();
+            ejecutarRecordatoriosRetiro();
+            revisarAlertasStock();
+            setInterval(ejecutarAlmacenadoProgramado, 24 * 60 * 60 * 1000);
+            setInterval(ejecutarRecordatoriosRetiro, 24 * 60 * 60 * 1000);
+            setInterval(revisarAlertasStock, 60 * 1000);
+        });
+    })
+    .catch((error) => {
+        console.error('❌ No se pudo preparar la regla de recogida:', error.message);
+        process.exitCode = 1;
+    });

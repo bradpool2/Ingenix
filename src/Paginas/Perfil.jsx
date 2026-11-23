@@ -7,6 +7,14 @@ import { authFetch } from '../components/api.js';
 function Perfil() {
   const userGuardado = JSON.parse(localStorage.getItem('user'));
   const [editando, setEditando] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    actual: '',
+    nueva: '',
+    confirmar: '',
+  });
+  const [cambiandoPassword, setCambiandoPassword] = useState(false);
+  const [mensajePassword, setMensajePassword] = useState('');
+  const [errorPassword, setErrorPassword] = useState('');
   const [datos, setDatos] = useState({
     user: userGuardado?.nombre || '',        // 👈 cambiado de .user a .nombre
     correo: userGuardado?.correo || '',
@@ -70,6 +78,55 @@ function Perfil() {
     } catch (error) {
       console.error(error);
       alert("No se pudo conectar con el servidor");
+    }
+  };
+
+  const manejarCambioPassword = (event) => {
+    setPasswordForm((actual) => ({
+      ...actual,
+      [event.target.name]: event.target.value,
+    }));
+    setMensajePassword('');
+    setErrorPassword('');
+  };
+
+  const cambiarPassword = async (event) => {
+    event.preventDefault();
+    setMensajePassword('');
+    setErrorPassword('');
+
+    if (passwordForm.nueva !== passwordForm.confirmar) {
+      setErrorPassword('La nueva contraseña y su confirmación no coinciden.');
+      return;
+    }
+    if (passwordForm.nueva.length < 8) {
+      setErrorPassword('La nueva contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    setCambiandoPassword(true);
+    try {
+      const res = await authFetch('http://localhost:3000/perfil/cambiar-password', {
+        method: 'PUT',
+        body: JSON.stringify({
+          passwordActual: passwordForm.actual,
+          passwordNueva: passwordForm.nueva,
+        }),
+      });
+      const respuesta = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setErrorPassword(respuesta.message || 'No se pudo actualizar la contraseña.');
+        return;
+      }
+
+      setMensajePassword(respuesta.message || 'Contraseña actualizada correctamente.');
+      setPasswordForm({ actual: '', nueva: '', confirmar: '' });
+    } catch (error) {
+      console.error('No se pudo cambiar la contraseña:', error);
+      setErrorPassword('No se pudo conectar con el servidor. Intenta de nuevo.');
+    } finally {
+      setCambiandoPassword(false);
     }
   };
 
@@ -142,6 +199,53 @@ function Perfil() {
               <button className="btn-cancelar-perfil" onClick={() => window.history.back()}>Volver</button>
             )}
           </div>
+
+          <form className="perfil-password" onSubmit={cambiarPassword}>
+            <h3>Cambiar contraseña</h3>
+            <p>Confirma tu contraseña actual para guardar una nueva.</p>
+            <div className="perfil-password-grid">
+              <label>
+                Contraseña actual
+                <input
+                  type="password"
+                  name="actual"
+                  value={passwordForm.actual}
+                  onChange={manejarCambioPassword}
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+              <label>
+                Nueva contraseña
+                <input
+                  type="password"
+                  name="nueva"
+                  value={passwordForm.nueva}
+                  onChange={manejarCambioPassword}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </label>
+              <label>
+                Confirmar nueva contraseña
+                <input
+                  type="password"
+                  name="confirmar"
+                  value={passwordForm.confirmar}
+                  onChange={manejarCambioPassword}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </label>
+            </div>
+            {errorPassword && <p className="perfil-password-error" role="alert">{errorPassword}</p>}
+            {mensajePassword && <p className="perfil-password-exito" role="status">{mensajePassword}</p>}
+            <button type="submit" className="btn-guardar-perfil" disabled={cambiandoPassword}>
+              {cambiandoPassword ? 'Actualizando...' : 'Cambiar contraseña'}
+            </button>
+          </form>
         </div>
 
       </div>

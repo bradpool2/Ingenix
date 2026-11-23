@@ -242,6 +242,7 @@ router.get('/solicitudes/mis-solicitudes', verificarToken, (req, res) => {
       s.idsolicitud AS "idSolicitud",
       s.numeroorden AS "numeroOrden",
       s.fecha_registro AS "fechaRegistro",
+      s.fecha_listo_retiro AS "fechaListoRetiro",
       s.estado,
       s.urgencia,
       s.total_estimado AS "totalEstimado",
@@ -255,7 +256,7 @@ router.get('/solicitudes/mis-solicitudes', verificarToken, (req, res) => {
     LEFT JOIN detalle_solicitud ds ON ds.solicitud_idsolicitud = s.idsolicitud
     WHERE c.usuario_idusuario = ?
     GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro, s.estado,
-      s.urgencia, s.total_estimado
+      s.fecha_listo_retiro, s.urgencia, s.total_estimado
     ORDER BY s.fecha_registro DESC
   `;
   conexion.query(query, [req.usuario.id], (error, resultados) => {
@@ -270,6 +271,7 @@ router.get('/api/mis-solicitudes', verificarToken, (req, res) => {
       s.idsolicitud AS "idSolicitud",
       s.numeroorden AS "numeroOrden",
       s.fecha_registro,
+      s.fecha_listo_retiro AS "fechaListoRetiro",
       s.total_estimado,
       s.estado,
       s.urgencia,
@@ -280,7 +282,7 @@ router.get('/api/mis-solicitudes', verificarToken, (req, res) => {
       ON ps.solicitud_idSolicitud = s.idSolicitud
     WHERE c.usuario_idusuario = ?
     GROUP BY s.idsolicitud, s.numeroorden, s.fecha_registro,
-      s.total_estimado, s.estado, s.urgencia
+      s.fecha_listo_retiro, s.total_estimado, s.estado, s.urgencia
     ORDER BY s.fecha_registro DESC
   `;
 
@@ -366,8 +368,8 @@ router.post('/solicitudes/almacenado/ejecutar', verificarToken, soloAdmin, (req,
     UPDATE solicitud
     SET estado = 'Almacenado'
     WHERE estado = 'Aprobado'
-      AND fecha_registro IS NOT NULL
-      AND fecha_registro < CURRENT_TIMESTAMP - INTERVAL '30 days'
+      AND fecha_listo_retiro IS NOT NULL
+      AND fecha_listo_retiro < CURRENT_TIMESTAMP - INTERVAL '30 days'
     RETURNING idsolicitud, numeroorden, cliente_idcliente, fecha_registro
   `;
 
@@ -680,7 +682,8 @@ const cambiarEstadoSolicitud = (req, res) => {
   const estadosVenta = ['Pendiente', 'En revision', 'Aprobado', 'Entregado', 'Cancelado', 'Almacenado'];
 
   conexion.query(
-    'SELECT tipodesolicitud_iddesolicitud AS "tipoSolicitud" FROM solicitud WHERE idsolicitud = ?',
+    `SELECT tipodesolicitud_iddesolicitud AS "tipoSolicitud", estado
+     FROM solicitud WHERE idsolicitud = ?`,
     [id],
     (tipoError, filas) => {
       if (tipoError) return res.status(500).json({ error: tipoError.message });
@@ -690,8 +693,15 @@ const cambiarEstadoSolicitud = (req, res) => {
         return res.status(400).json({ error: esVenta ? 'Estado no válido para una solicitud de venta' : 'Estado no válido' });
       }
 
-      let query = 'UPDATE solicitud SET estado = ?';
-      const params = [estado];
+      let query = `UPDATE solicitud
+                   SET estado = ?,
+                       fecha_listo_retiro = CASE
+                         WHEN ? = 'Aprobado' AND estado <> 'Aprobado'
+                           THEN date_trunc('second', CURRENT_TIMESTAMP)
+                         WHEN ? IN ('Entregado', 'Cancelado') THEN NULL
+                         ELSE fecha_listo_retiro
+                       END`;
+      const params = [estado, estado, estado];
       if (tecnico_asignado) {
         query += ', tecnico_asignado = ?';
         params.push(tecnico_asignado);

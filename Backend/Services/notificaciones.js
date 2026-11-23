@@ -30,7 +30,11 @@ export const crearNotificacion = async ({
 
   let destinatarios = usuarioIds;
   if (destinatarios.length === 0) {
-    const rolesCompatibles = roles === 'cliente' ? ['cliente', 'clientes'] : [roles];
+    const rolesCompatibles = {
+      cliente: ['cliente', 'clientes'],
+      admin: ['admin', 'administrador'],
+      tecnico: ['tecnico', 'técnico'],
+    }[roles] || [roles];
     const placeholders = rolesCompatibles.map(() => '?').join(', ');
     const usuarios = roles === 'todos'
       ? await query('SELECT idusuario FROM usuario')

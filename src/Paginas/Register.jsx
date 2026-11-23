@@ -15,6 +15,8 @@ function Register() {
     pass: "",
     confirmar: "",
   });
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [errorRegistro, setErrorRegistro] = useState("");
 
   const manejarCambio = (e) => {
     const valor = e.target.name === "telefono"
@@ -27,6 +29,11 @@ function Register() {
   };
 
   const registrar = async () => {
+    setErrorRegistro("");
+    if (!aceptaTerminos) {
+      setErrorRegistro("Debes aceptar la condición del plazo de recogida para registrarte.");
+      return;
+    }
     if (!/^\d{10}$/.test(datos.telefono)) {
       alert("El número de teléfono debe tener exactamente 10 dígitos");
       return;
@@ -76,15 +83,20 @@ function Register() {
           TipoDocumento_idTipoDocumento: parseInt(datos.tipoDocumento),
       
           rol_idRol: 3,
+          aceptaTerminos,
         }),
       });
 
       if (res.ok) {
         alert("Usuario registrado correctamente");
         navigate("/login");
+      } else {
+        const resultado = await res.json().catch(() => ({}));
+        setErrorRegistro(resultado.message || "No se pudo completar el registro.");
       }
     } catch (error) {
       console.error(error);
+      setErrorRegistro("No se pudo conectar con el servidor. Intenta de nuevo.");
     }
   };
 
@@ -168,6 +180,24 @@ function Register() {
             value={datos.confirmar}
             onChange={manejarCambio}
           />
+
+          <div className="terminos-registro">
+            <strong>Regla de recogida y envío</strong>
+            <p>
+              Cuando tu artículo aparezca como aprobado y listo, tienes 30 días
+              para recogerlo o solicitar un envío. Te enviaremos recordatorios
+              en la aplicación y al correo los días 1, 15 y 30.
+            </p>
+            <label className="aceptacion-terminos">
+              <input
+                type="checkbox"
+                checked={aceptaTerminos}
+                onChange={(event) => setAceptaTerminos(event.target.checked)}
+              />
+              <span>Acepto esta condición del servicio.</span>
+            </label>
+          </div>
+          {errorRegistro && <p className="error-registro" role="alert">{errorRegistro}</p>}
 
           <button onClick={registrar}>Registrarse</button>
         </div>

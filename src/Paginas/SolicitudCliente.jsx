@@ -430,6 +430,13 @@ export default function SolicitudCliente() {
         <h1>Nueva solicitud</h1>
         <p>Cuéntanos qué necesitas y te contactaremos lo antes posible.</p>
       </div>
+
+      <aside className="aviso-plazo-retiro" role="note">
+        <strong>Recogida o envío:</strong> cuando tu artículo aparezca como
+        aprobado y listo, tienes 30 días para recogerlo o solicitar un envío.
+        Recibirás recordatorios dentro de la aplicación y en tu correo los días
+        1, 15 y 30.
+      </aside>
  
       <div className="needs-validation">
         {exito && (

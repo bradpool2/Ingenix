@@ -64,6 +64,14 @@ Para una emergencia dirigida a todos los técnicos, el cuerpo puede ser:
 }
 ```
 
+## Alertas de inventario
+
+El backend genera una notificación urgente para los administradores cuando un
+producto llega a 2 unidades o menos. La alerta se muestra brevemente en la
+parte inferior de la pantalla; no se repite mientras el producto siga bajo.
+Al reponer el stock por encima de 2, el sistema queda listo para alertar de
+nuevo si vuelve a alcanzar el umbral.
+
 ## Base de datos
 
 El backend usa PostgreSQL mediante `pg` y la cadena de conexion de Supabase. La capa
@@ -107,6 +115,11 @@ datos existente antes de activar el archivado.
 El personal autorizado puede consultar las solicitudes archivadas con
 `GET /solicitudes/almacenado` (requiere JWT de administrador o técnico). Un
 administrador ejecuta `POST /solicitudes/almacenado/ejecutar`; la operación
-idempotente cambia a `Almacenado` los mantenimientos en estado `Aprobado` cuya
-`fecha_registro` supera 30 días y notifica al cliente asociado y a los
-administradores.
+idempotente cambia a `Almacenado` las solicitudes en estado `Aprobado` cuando
+han pasado 30 días desde `fecha_listo_retiro`, que se registra al aprobarlas.
+El registro público requiere aceptar la regla de recogida y conserva la versión
+y fecha de aceptación. Se envían recordatorios por correo y en la aplicación
+los días 1, 15 y 30; cada canal registra sus envíos para evitar duplicados. Las
+solicitudes que ya estaban aprobadas y no tenían fecha de disponibilidad al
+activar la regla inician su plazo en el primer arranque del backend con esta
+actualización.
